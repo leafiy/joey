@@ -37,3 +37,11 @@ _Avoid_: sync、copy job
 
 **Error Banner**:
 面板顶部可关闭的一条错误概要(哪个文件、什么错);与 Status-Dot 错误态一起构成全部失败反馈——无弹窗、无系统通知。
+
+**Host Switcher**:
+面板工具条左侧的 Active Host 下拉:列出全部 Host Record,可切换,尾部带 Configure Hosts… 入口。
+_Avoid_: server picker、connection menu
+
+**Gear Menu**:
+面板工具条右侧的齿轮菜单,收纳家族 Menu Tail(Settings… / 检查更新 / Quit)。
+_Avoid_: hamburger、more menu

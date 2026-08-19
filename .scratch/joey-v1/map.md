@@ -31,10 +31,11 @@ joey v1 可用:常驻 menubar 的 SSH/SFTP 远程文件管理器,在用户机器
 - [01 SSH C 库选型与 SwiftPM 打包](issues/01-ssh-c-library-packaging.md) — 定 libssh 0.12.2 + 静态 libcrypto 链成单 dylib,本地 xcframework 作 `binaryTarget` + 薄 wrapper;LGPL 走 §6(b) 动态链接(附全文+托管源码+`disable-library-validation`);libssh2 因密钥格式/known_hosts/维护劣势落选;spike 03 须验证进度回调需自实现的分块循环。
 - [02 rsync 检测与远程一键安装机制](issues/02-rsync-detect-and-install.md) — `command -v` 检测;apt→dnf→yum→zypper→pacman→apk→brew 探测安装;sudo 走 `-S` 喂 stdin 不开 PTY;密码认证主机永远 sftp;进度要求本地 Homebrew rsync ≥3.1 否则 `--progress` 逐文件解析(macOS 自带 rsync/openrsync 均不支持 `--info=progress2`)。
 - [04 leafiy-ui 通用拖放组件 API](issues/04-leafiy-ui-drag-components.md) — 三组件真机验证后合入 leafiy-ui main(`400aef5`,ADR-0009):`leafiyFileDrop`+标准高亮、`LeafiyMenuBarDropTarget`(status-bar window 覆盖层,1s 轮询重挂)、`LeafiyFilePromise` 拖出定纯 SwiftUI 惰性 file representation 引擎(临时文件双拷贝代价已知情接受;AppKit 直写备胎存分支历史)。
+- [05 面板 UI 定稿](issues/05-panel-ui.md) — A 变体定稿:顶部 Host Switcher + 面包屑行 + 行右键菜单;双层落点高亮(文件夹行 + 空白=当前目录);内嵌 Error Banner 横条;固定 360×520;呈现用 `.window` 样式 MenuBarExtra + Gear Menu 收家族 Menu Tail(Explicit Exception,joey ADR-0002);新词 Host Switcher / Gear Menu 入 CONTEXT.md。
 
 ## Not yet specified
 
-- **实施票切分**:脚手架(template-app 起步)、设置页(主机表单 + config 导入 + 隐私文案)、引擎集成、浏览器视图、上传/下载传输、rsync 加速路径、menubar 图标拖放接入——等 SSH 库预研、引擎 spike、拖放组件 API、面板 UI 三张 prototype 票落定后切。
+- **实施票切分**:脚手架(template-app 起步)、设置页(主机表单 + config 导入 + 隐私文案)、引擎集成、浏览器视图、上传/下载传输、rsync 加速路径、menubar 图标拖放接入——预研与 UI 均已落定,只等引擎 spike(03)回报后切。
 - **~/.ssh/config 导入的字段映射细节**(Host/HostName/User/Port/IdentityFile 之外要不要认别名嵌套、通配符)——等设置页实施时定。
 - **发布链路**:适配 daisy 的 `release.sh`(公证 profile、DMG、leafiy.com 更新源发布)——等 v1 能构建后再看。
 - **rsync 一键安装的凭据复用细节**(sudo 密码从主机记录带出还是临时输入)——等 rsync 调研票回答机制后定。
