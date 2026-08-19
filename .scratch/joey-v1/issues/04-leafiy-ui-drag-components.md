@@ -1,7 +1,7 @@
 # 04 leafiy-ui 通用拖放组件 API
 
 Type: prototype
-Status: claimed
+Status: resolved
 
 ## Question
 
@@ -28,3 +28,17 @@ Status: claimed
 2. 拖出行的点击是否还能到达下层 `onTapGesture`(demo 第三行);不行则 05 的浏览器行激活方式要改或 API 加 `onTap:`。
 3. Variant B(纯 SwiftUI 懒 file representation)若真惰性可用,弃 AppKit 方案。
 4. 多选拖出暂缓,joey 需要时再扩。
+
+## Answer
+
+**已定稿并合入 leafiy-ui main(commit `400aef5`),决策记 leafiy-ui `docs/adr/0009`。** 三个组件,两轮真机验证全过:
+
+1. **拖入**:`leafiyFileDrop(isTargeted:perform:)` + 家族标准高亮 `leafiyDropHighlight(_:)`——薄封装 SwiftUI `onDrop`,仅 `.fileURL`,主线程整批回调。高亮独立成 modifier,面板整体高亮与文件夹行落点可分开表达(05 直接可用)。
+2. **menubar 图标拖入**:`LeafiyMenuBarDropTarget(onDrop:).activate()`——定位本 app status-bar window、按钮上盖透明 drop 层,点击穿透开菜单,1s 轮询在 Dock↔menubar 模式切换后重挂。真机验证:投递、点击、重挂全部成立。
+3. **拖出(file promise)**:`LeafiyFilePromise(filename:contentType:write:)` + `leafiyFilePromiseDragOut(_:)`——**引擎定为纯 SwiftUI**:`.onDrag` + 惰性 `NSItemProvider` file representation。真机验证:真惰性(落盘才调 `write`)、Finder 显示进度条、取消干净、与 `onTapGesture` 天然共存。`write` 为 async 回调,收 destination URL + `Progress`(joey 在此从远端下载),取消经 Task cancellation。
+   - **知情接受的代价**(用户拍板):先写启动卷临时目录、系统再拷到落点——大文件双份 I/O + 临时空间。
+   - **备胎**:AppKit `NSFilePromiseProvider` 直写落点方案已同样验证可用(含 `onTap:` 点击方案),存于 prototype 分支历史 commit `4c4c399`,代价咬手时可切换。
+4. **关键教训**:SwiftUI `onTapGesture` 无法与 AppKit 鼠标覆盖层叠加(手势独占鼠标、行拖不动)——这是弃 AppKit 引擎的直接推手之一。
+5. **暂缓**:多选拖出(多 dragging item),joey 需要时再扩。
+
+Assets:leafiy-ui 分支 `prototype/drag-drop-components`(API 草案 `docs/drafts/drag-and-drop-api.md` + template-app demo,最终 commit `83cf2c1`)。

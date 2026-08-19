@@ -30,6 +30,7 @@ joey v1 可用:常驻 menubar 的 SSH/SFTP 远程文件管理器,在用户机器
 
 - [01 SSH C 库选型与 SwiftPM 打包](issues/01-ssh-c-library-packaging.md) — 定 libssh 0.12.2 + 静态 libcrypto 链成单 dylib,本地 xcframework 作 `binaryTarget` + 薄 wrapper;LGPL 走 §6(b) 动态链接(附全文+托管源码+`disable-library-validation`);libssh2 因密钥格式/known_hosts/维护劣势落选;spike 03 须验证进度回调需自实现的分块循环。
 - [02 rsync 检测与远程一键安装机制](issues/02-rsync-detect-and-install.md) — `command -v` 检测;apt→dnf→yum→zypper→pacman→apk→brew 探测安装;sudo 走 `-S` 喂 stdin 不开 PTY;密码认证主机永远 sftp;进度要求本地 Homebrew rsync ≥3.1 否则 `--progress` 逐文件解析(macOS 自带 rsync/openrsync 均不支持 `--info=progress2`)。
+- [04 leafiy-ui 通用拖放组件 API](issues/04-leafiy-ui-drag-components.md) — 三组件真机验证后合入 leafiy-ui main(`400aef5`,ADR-0009):`leafiyFileDrop`+标准高亮、`LeafiyMenuBarDropTarget`(status-bar window 覆盖层,1s 轮询重挂)、`LeafiyFilePromise` 拖出定纯 SwiftUI 惰性 file representation 引擎(临时文件双拷贝代价已知情接受;AppKit 直写备胎存分支历史)。
 
 ## Not yet specified
 
