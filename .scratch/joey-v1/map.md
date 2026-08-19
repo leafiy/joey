@@ -33,17 +33,20 @@ joey v1 可用:常驻 menubar 的 SSH/SFTP 远程文件管理器,在用户机器
 - [04 leafiy-ui 通用拖放组件 API](issues/04-leafiy-ui-drag-components.md) — 三组件真机验证后合入 leafiy-ui main(`400aef5`,ADR-0009):`leafiyFileDrop`+标准高亮、`LeafiyMenuBarDropTarget`(status-bar window 覆盖层,1s 轮询重挂)、`LeafiyFilePromise` 拖出定纯 SwiftUI 惰性 file representation 引擎(临时文件双拷贝代价已知情接受;AppKit 直写备胎存分支历史)。
 - [05 面板 UI 定稿](issues/05-panel-ui.md) — A 变体定稿:顶部 Host Switcher + 面包屑行 + 行右键菜单;双层落点高亮(文件夹行 + 空白=当前目录);内嵌 Error Banner 横条;固定 360×520;呈现用 `.window` 样式 MenuBarExtra + Gear Menu 收家族 Menu Tail(Explicit Exception,joey ADR-0002);新词 Host Switcher / Gear Menu 入 CONTEXT.md。
 - [06 Joey 图标](issues/06-icons.md) — 用户自行出图(agent 草案落选):两张源图按 ICON_CONTRACT(1024 app + 640 menubar,给 Status-Dot 留角),落位沿 daisy 模式;接线与占位图归实施票。
+- [07 v1 全量实施](issues/07-v1-implementation.md) — 应用全量落仓等真机验证:引擎(SSHConnection/HostSession/TransferManager/RsyncSupport/SSHConfigImport)+ 变体 A 面板 + 四页设置 + 契约合规脚手架;leafiy-ui 增 `LeafiyMenuBarExtra(style:)`(ADR-0010)与 DropTarget 悬停回调;sudo 凭据悬案落定 = 安装 sheet 临时输入;图标占位(暂借 daisy 源图)。
+- [08 收藏与 Icon Drop 新动线](issues/08-favorite-drop-targets.md) — 用户新需求收编:Favorite(主机+目录,最多三)入 settings + Favorites 设置页;拖悬图标有收藏弹 Favorite Tray(LeafiyFloatingPanel)直接投放、无收藏开主面板;直接松图标兜底传第一收藏;CONTEXT.md 新词 Favorite / Favorite Tray。
 
 ## Not yet specified
 
-- **实施票切分**:脚手架(template-app 起步)、设置页(主机表单 + config 导入 + 隐私文案)、引擎集成、浏览器视图、上传/下载传输、rsync 加速路径、menubar 图标拖放接入——预研与 UI 均已落定,只等引擎 spike(03)回报后切。
-- **~/.ssh/config 导入的字段映射细节**(Host/HostName/User/Port/IdentityFile 之外要不要认别名嵌套、通配符)——等设置页实施时定。
-- **发布链路**:适配 daisy 的 `release.sh`(公证 profile、DMG、leafiy.com 更新源发布)——等 v1 能构建后再看。
-- **rsync 一键安装的凭据复用细节**(sudo 密码从主机记录带出还是临时输入)——等 rsync 调研票回答机制后定。
+- **发布链路**:适配 daisy 的 `release.sh` + `install.sh`(公证 profile、DMG、leafiy.com 更新源发布)——等 v1 真机构建通过后再切。
+- **真机验证回报**:spike(03)与 app 全量(07/08)都等用户在 mac 上构建运行;失败项回流成新票。
+- **正式图标源图**:用户按 ICON_CONTRACT 出图后替换两张占位 PNG(见 README)。
+
+已随实施落定(原悬案):`~/.ssh/config` 导入只认 Host/HostName/User/Port/IdentityFile、跳过通配符与 Match(票 07);rsync 一键安装 sudo 密码 = 安装 sheet 临时输入、不复用主机密码(票 07)。
 
 ## Out of scope
 
 - 远程文件移动、编辑、权限修改;目录同步/监听;多主机并联传输;终端/shell 功能。
 - 传输完成/失败的系统通知、独立传输窗口、面板内传输队列行(Q7 决定:只要 Status-Dot)。
 - 纯 Swift SSH 库(Citadel)与系统 ssh/sftp 二进制方案——已否决,理由见 joey `docs/adr/0001`。
-- 目录收藏/最近目录栏(浏览器保持最简;若日后需要属新效力)。
+- 最近目录栏(浏览器保持最简)。~~目录收藏~~——2026-08-19 用户直接提需求收编进 v1(票 08:Favorite 最多三个,Icon Drop 有收藏走 Favorite Tray、无收藏开主面板)。

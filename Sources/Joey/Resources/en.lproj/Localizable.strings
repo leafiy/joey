@@ -1,0 +1,73 @@
+/* Panel */
+"New Folder" = "New Folder";
+"New Folder…" = "New Folder…";
+"Folder name" = "Folder name";
+"Create" = "Create";
+"Cancel" = "Cancel";
+"Rename" = "Rename";
+"Rename…" = "Rename…";
+"New name" = "New name";
+"Delete" = "Delete";
+"Delete…" = "Delete…";
+"Delete “%@”?" = "Delete “%@”?";
+"The remote file is deleted immediately. This cannot be undone." = "The remote file is deleted immediately. This cannot be undone.";
+"untitled folder" = "untitled folder";
+"Configure Hosts…" = "Configure Hosts…";
+"No Host" = "No Host";
+"Refresh" = "Refresh";
+"No host configured" = "No host configured";
+"Add a Host Record to start browsing." = "Add a Host Record to start browsing.";
+"Open Settings…" = "Open Settings…";
+"Empty folder" = "Empty folder";
+"Drop files here to upload" = "Drop files here to upload";
+
+/* rsync */
+"rsync not found on this host — transfers use sftp." = "rsync not found on this host — transfers use sftp.";
+"Install…" = "Install…";
+"Install rsync" = "Install rsync";
+"Checking the remote package manager…" = "Checking the remote package manager…";
+"No supported package manager found on the remote." = "No supported package manager found on the remote.";
+"Transfers keep working over sftp." = "Transfers keep working over sftp.";
+"sudo password" = "sudo password";
+"Running…" = "Running…";
+"Install failed." = "Install failed.";
+"rsync installed — fast transfers enabled." = "rsync installed — fast transfers enabled.";
+"Done" = "Done";
+"Close" = "Close";
+"Install" = "Install";
+
+/* Favorite Tray */
+"Favorites" = "Favorites";
+"Drop to upload" = "Drop to upload";
+
+/* Settings — Hosts */
+"Hosts" = "Hosts";
+"Add Host" = "Add Host";
+"New Host" = "New Host";
+"Import from ~/.ssh/config" = "Import from ~/.ssh/config";
+"No hosts found in ~/.ssh/config." = "No hosts found in ~/.ssh/config.";
+"Imported %d new host(s)." = "Imported %d new host(s).";
+"Name" = "Name";
+"Host" = "Host";
+"Port" = "Port";
+"User" = "User";
+"Authentication" = "Authentication";
+"Password" = "Password";
+"Private Key" = "Private Key";
+"Private key path" = "Private key path";
+"Key passphrase (optional)" = "Key passphrase (optional)";
+"Active Host" = "Active Host";
+"Make Active" = "Make Active";
+"Remove" = "Remove";
+
+/* Settings — Favorites */
+"favorites.explainer" = "Favorites are instant drop targets: drag files onto the menu bar icon and the Favorite Tray appears. Without favorites, the drag opens the main panel instead.";
+"Add Favorite" = "Add Favorite";
+"Up to three favorites." = "Up to three favorites.";
+"Remote directory" = "Remote directory";
+
+/* Settings — Privacy */
+"Privacy" = "Privacy";
+"privacy.storage" = "Host passwords and key passphrases are stored in plain text in ~/Library/Application Support/Joey/settings.json on this Mac. Anyone with access to your user account can read them.";
+"privacy.transfer" = "Joey talks only to the SSH hosts you configure. Files dragged out of the Browser are staged in a temporary folder on this Mac before Finder copies them to the destination.";
+"privacy.hostkeys" = "Server host keys are checked against ~/.ssh/known_hosts. Unknown hosts are trusted on first use and recorded; a changed host key blocks the connection.";

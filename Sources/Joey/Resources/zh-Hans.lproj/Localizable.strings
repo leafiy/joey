@@ -1,0 +1,73 @@
+/* Panel */
+"New Folder" = "新建文件夹";
+"New Folder…" = "新建文件夹…";
+"Folder name" = "文件夹名称";
+"Create" = "创建";
+"Cancel" = "取消";
+"Rename" = "重命名";
+"Rename…" = "重命名…";
+"New name" = "新名称";
+"Delete" = "删除";
+"Delete…" = "删除…";
+"Delete “%@”?" = "删除“%@”?";
+"The remote file is deleted immediately. This cannot be undone." = "远程文件将立即删除,且无法撤销。";
+"untitled folder" = "未命名文件夹";
+"Configure Hosts…" = "配置主机…";
+"No Host" = "无主机";
+"Refresh" = "刷新";
+"No host configured" = "尚未配置主机";
+"Add a Host Record to start browsing." = "添加一条主机配置即可开始浏览。";
+"Open Settings…" = "打开设置…";
+"Empty folder" = "空文件夹";
+"Drop files here to upload" = "拖入文件即可上传";
+
+/* rsync */
+"rsync not found on this host — transfers use sftp." = "该主机未安装 rsync——传输走 sftp。";
+"Install…" = "安装…";
+"Install rsync" = "安装 rsync";
+"Checking the remote package manager…" = "正在检测远程包管理器…";
+"No supported package manager found on the remote." = "远程未发现受支持的包管理器。";
+"Transfers keep working over sftp." = "传输将继续使用 sftp。";
+"sudo password" = "sudo 密码";
+"Running…" = "正在执行…";
+"Install failed." = "安装失败。";
+"rsync installed — fast transfers enabled." = "rsync 已安装——加速传输已启用。";
+"Done" = "完成";
+"Close" = "关闭";
+"Install" = "安装";
+
+/* Favorite Tray */
+"Favorites" = "收藏";
+"Drop to upload" = "拖放到收藏即上传";
+
+/* Settings — Hosts */
+"Hosts" = "主机";
+"Add Host" = "添加主机";
+"New Host" = "新主机";
+"Import from ~/.ssh/config" = "从 ~/.ssh/config 导入";
+"No hosts found in ~/.ssh/config." = "~/.ssh/config 中没有发现主机。";
+"Imported %d new host(s)." = "已导入 %d 个新主机。";
+"Name" = "名称";
+"Host" = "主机地址";
+"Port" = "端口";
+"User" = "用户名";
+"Authentication" = "认证方式";
+"Password" = "密码";
+"Private Key" = "私钥";
+"Private key path" = "私钥路径";
+"Key passphrase (optional)" = "私钥口令(可选)";
+"Active Host" = "当前主机";
+"Make Active" = "设为当前";
+"Remove" = "移除";
+
+/* Settings — Favorites */
+"favorites.explainer" = "收藏是即投即达的落点:把文件拖到菜单栏图标即弹出收藏面板。没有收藏时,拖拽会打开主面板。";
+"Add Favorite" = "添加收藏";
+"Up to three favorites." = "最多三个收藏。";
+"Remote directory" = "远程目录";
+
+/* Settings — Privacy */
+"Privacy" = "隐私";
+"privacy.storage" = "主机密码与私钥口令以明文保存在本机 ~/Library/Application Support/Joey/settings.json。能访问你用户账户的人都可以读取它们。";
+"privacy.transfer" = "Joey 只与你配置的 SSH 主机通信。从浏览器拖出的文件会先落到本机临时目录,再由 Finder 复制到目的地。";
+"privacy.hostkeys" = "服务器主机密钥按 ~/.ssh/known_hosts 校验。未知主机首次连接即信任并记录;主机密钥变更会阻断连接。";

@@ -25,7 +25,15 @@ _Avoid_: default directory、home
 _Avoid_: import
 
 **Icon Drop**:
-把本地文件直接拖到 menubar 图标,上传到 Active Host 的 Last Browsed Directory。
+把本地文件直接拖到 menubar 图标:配置了 Favorite 时弹出 Favorite Tray 直接投放;没有 Favorite 时打开主面板落到 Browser。
+
+**Favorite**:
+设置里收藏的一个远程落点 = Host Record + 远程目录,最多三个;是 Icon Drop 的直达目标。
+_Avoid_: bookmark、pinned folder
+
+**Favorite Tray**:
+拖文件悬停 menubar 图标时弹出的小面板,每个 Favorite 一个落点行,拖上即传。
+_Avoid_: quick drop menu
 
 **Drag-out**:
 从 Browser 把远程文件拖到本地(Finder/桌面);基于 file promise,落盘时才真正下载。
