@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Joey 图标草案</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 32px;
+         background: #f4f4f5; color: #1c1c1e; }
+  @media (prefers-color-scheme: dark) { body { background: #1c1c1e; color: #f2f2f7; } .card { background:#2c2c2e !important; } }
+  h1 { font-size: 20px; }
+  .hint { color: #808089; max-width: 720px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; margin-top: 24px; }
+  .card { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 0 0 12px; color: #808089; font-size: 13px; }
+  .previews { display: flex; align-items: flex-end; gap: 16px; }
+  .previews figure { margin: 0; text-align: center; }
+  .previews figcaption { font-size: 11px; color: #808089; margin-top: 4px; }
+  canvas.app { width: 200px; height: 200px; }
+  canvas.mb { width: 110px; height: 110px; }
+  .strips { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+  .strip { display: flex; align-items: center; gap: 14px; border-radius: 6px; padding: 5px 12px; }
+  .strip.light { background: #ececec; }
+  .strip.dark { background: #262626; }
+  .strip span { font-size: 11px; color: #808089; width: 120px; }
+  .btns { display: flex; gap: 8px; }
+  button { font: inherit; border: 1px solid #d0d0d5; background: transparent; color: inherit;
+           border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+  button:hover { background: rgba(120,120,128,.12); }
+  label.guides { display: inline-flex; gap: 6px; align-items: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>Joey 图标草案 <small style="font-weight:normal;color:#808089">(joey-v1 票 06)</small></h1>
+<p class="hint">四个方向,均按家族 ICON_CONTRACT 几何渲染:app 源图 1024×1024(白 squircle 100–923,artwork ≤640 居中),menubar 源图 640×640(squircle 63–576,artwork ≤400)。每张卡片下方是 18pt 菜单栏实际大小模拟(含 Status-Dot 四态、明暗两种菜单栏)。挑中后点导出,两个 PNG 直接就是 <code>compile-macos-app-icon.sh</code> 与 <code>LeafiyMenuBarIconFile</code> 的合法输入。</p>
+<label class="guides"><input type="checkbox" id="guides"> 显示契约参考线(红=squircle 边界,蓝虚线=artwork 上限框)</label>
+<div class="grid" id="grid"></div>
+
+<script>
+'use strict';
+const ORANGE = '#F08A3C', ORANGE_DARK = '#D96F26', ORANGE_LIGHT = '#F7B87E',
+      BLUE = '#3B82F6', WHITE = '#FFFFFF';
+
+function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function tri(ctx, a, b, c) {
+  ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath();
+}
+
+// 每个草案在 640×640 的 artwork 空间里作画。
+const drafts = [
+  {
+    key: 'pouch',
+    name: '1 · 口袋 Pouch',
+    desc: '袋鼠育儿袋 = 收纳箭头的托盘。上传即“投入口袋”,直指 Panel/Icon Drop 的核心动作。',
+    draw(ctx) {
+      // 蓝色入袋箭头(先画,尖端没入袋口)
+      ctx.fillStyle = BLUE;
+      rr(ctx, 296, 70, 48, 180, 24); ctx.fill();
+      tri(ctx, [244, 236], [396, 236], [320, 344]); ctx.fill();
+      // 橙色口袋
+      ctx.fillStyle = ORANGE;
+      rr(ctx, 130, 330, 380, 215, [24, 24, 120, 120]); ctx.fill();
+      // 袋口缝线(深橙)
+      ctx.fillStyle = ORANGE_DARK;
+      rr(ctx, 130, 330, 380, 46, [24, 24, 0, 0]); ctx.fill();
+      // 白色缝线细节
+      ctx.strokeStyle = WHITE; ctx.lineWidth = 14; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(210, 445); ctx.quadraticCurveTo(320, 490, 430, 445); ctx.stroke();
+    }
+  },
+  {
+    key: 'kangaroo',
+    name: '2 · 几何袋鼠 Joey',
+    desc: '圆几何拼出的小袋鼠,袋里探出一份蓝色文件——名字的直译,最有吉祥物感。',
+    draw(ctx) {
+      ctx.lineCap = 'round';
+      // 尾巴
+      ctx.strokeStyle = ORANGE; ctx.lineWidth = 64;
+      ctx.beginPath(); ctx.moveTo(185, 425); ctx.quadraticCurveTo(85, 480, 60, 575); ctx.stroke();
+      // 后腿 + 脚
+      ctx.fillStyle = ORANGE;
+      ctx.beginPath(); ctx.ellipse(330, 470, 120, 85, -0.15, 0, Math.PI * 2); ctx.fill();
+      rr(ctx, 300, 512, 210, 46, 23); ctx.fill();
+      // 身体
+      ctx.save(); ctx.translate(300, 380); ctx.rotate(-0.35);
+      ctx.beginPath(); ctx.ellipse(0, 0, 175, 125, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      // 颈 + 头
+      ctx.strokeStyle = ORANGE; ctx.lineWidth = 92;
+      ctx.beginPath(); ctx.moveTo(392, 300); ctx.lineTo(458, 212); ctx.stroke();
+      ctx.beginPath(); ctx.arc(468, 196, 64, 0, Math.PI * 2); ctx.fill();
+      // 吻部
+      ctx.beginPath(); ctx.ellipse(520, 218, 40, 28, 0.35, 0, Math.PI * 2); ctx.fill();
+      // 耳朵
+      ctx.lineWidth = 36;
+      ctx.beginPath(); ctx.moveTo(444, 150); ctx.lineTo(420, 78); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(488, 146); ctx.lineTo(494, 70); ctx.stroke();
+      // 前爪
+      ctx.lineWidth = 30;
+      ctx.beginPath(); ctx.moveTo(452, 296); ctx.quadraticCurveTo(470, 330, 452, 356); ctx.stroke();
+      // 袋中蓝色文件(先画,再用白袋盖住下半)
+      ctx.fillStyle = BLUE;
+      rr(ctx, 286, 340, 86, 84, 12); ctx.fill();
+      // 白色育儿袋
+      ctx.fillStyle = WHITE;
+      ctx.beginPath(); ctx.ellipse(328, 448, 92, 70, -0.12, 0, Math.PI * 2); ctx.fill();
+      // 眼睛
+      ctx.beginPath(); ctx.arc(478, 178, 11, 0, Math.PI * 2); ctx.fill();
+    }
+  },
+  {
+    key: 'hop',
+    name: '3 · 跳跃传输 Hop',
+    desc: '文件沿虚线弧“跳”进文件夹——袋鼠的跳,不画袋鼠。最抽象、最像工具图标。',
+    draw(ctx) {
+      // 虚线跳跃弧
+      ctx.strokeStyle = ORANGE; ctx.lineWidth = 24; ctx.lineCap = 'round';
+      ctx.setLineDash([2, 58]);
+      ctx.beginPath(); ctx.moveTo(255, 280); ctx.quadraticCurveTo(410, 90, 500, 300); ctx.stroke();
+      ctx.setLineDash([]);
+      // 飞行中的文件(橙,折角浅橙)
+      ctx.save(); ctx.translate(185, 235); ctx.rotate(-0.18);
+      ctx.fillStyle = ORANGE; rr(ctx, -58, -74, 116, 148, 18); ctx.fill();
+      ctx.fillStyle = ORANGE_LIGHT; tri(ctx, [14, -74], [58, -74], [58, -30]); ctx.fill();
+      ctx.restore();
+      // 蓝色文件夹
+      ctx.fillStyle = BLUE;
+      rr(ctx, 352, 352, 120, 52, [14, 14, 0, 0]); ctx.fill();
+      rr(ctx, 340, 382, 232, 160, [0, 18, 20, 20]); ctx.fill();
+      // 文件夹高光口
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      rr(ctx, 340, 382, 232, 22, [0, 18, 0, 0]); ctx.fill();
+    }
+  },
+  {
+    key: 'monogram',
+    name: '4 · J 字袋 Monogram',
+    desc: '圆体 J 的下钩即口袋,蓝色箭头落入——字标路线,最克制,缩小最稳。',
+    draw(ctx) {
+      ctx.lineCap = 'round';
+      // J
+      ctx.strokeStyle = ORANGE; ctx.lineWidth = 96;
+      ctx.beginPath(); ctx.moveTo(438, 116); ctx.lineTo(438, 356);
+      ctx.quadraticCurveTo(438, 506, 298, 506);
+      ctx.quadraticCurveTo(186, 506, 172, 396); ctx.stroke();
+      // 入袋箭头
+      ctx.fillStyle = BLUE;
+      rr(ctx, 204, 118, 46, 148, 23); ctx.fill();
+      tri(ctx, [156, 252], [298, 252], [227, 350]); ctx.fill();
+    }
+  }
+];
+
+const APP = { size: 1024, sq: { x: 100, w: 824, r: 184 }, off: 192, scale: 1 };
+const MB  = { size: 640,  sq: { x: 63,  w: 514, r: 115 }, off: 120, scale: 400 / 640 };
+
+function renderIcon(draft, spec, guides) {
+  const c = document.createElement('canvas');
+  c.width = c.height = spec.size;
+  const ctx = c.getContext('2d');
+  // 白 squircle + 柔和投影(daisy 同款观感)
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.18)';
+  ctx.shadowBlur = spec.size * 0.028;
+  ctx.shadowOffsetY = spec.size * 0.009;
+  ctx.fillStyle = '#FBFBFB';
+  rr(ctx, spec.sq.x, spec.sq.x, spec.sq.w, spec.sq.w, spec.sq.r); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+  ctx.lineWidth = Math.max(1, spec.size / 512);
+  rr(ctx, spec.sq.x, spec.sq.x, spec.sq.w, spec.sq.w, spec.sq.r); ctx.stroke();
+  // artwork
+  ctx.save(); ctx.translate(spec.off, spec.off); ctx.scale(spec.scale, spec.scale);
+  draft.draw(ctx);
+  ctx.restore();
+  if (guides) {
+    ctx.strokeStyle = 'rgba(255,59,48,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    rr(ctx, spec.sq.x, spec.sq.x, spec.sq.w, spec.sq.w, spec.sq.r); ctx.stroke();
+    ctx.strokeStyle = 'rgba(59,130,246,0.8)'; ctx.setLineDash([10, 8]);
+    ctx.strokeRect(spec.off, spec.off, 640 * spec.scale, 640 * spec.scale);
+    ctx.setLineDash([]);
+  }
+  return c;
+}
+
+// 18pt 菜单栏模拟:复刻 LeafiyDesign 的 Status-Dot 几何(icon 18 / dot 6 / inset 4 / ring 1)。
+const DOT_COLORS = { idle: null, busy: '#007AFF', success: '#34C759', failure: '#FF3B30' };
+function renderMenuBarAt18(mbCanvas, state) {
+  const dpr = Math.max(2, window.devicePixelRatio || 2), S = 18;
+  const c = document.createElement('canvas');
+  c.width = c.height = S * dpr;
+  c.style.width = c.style.height = S + 'px';
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(mbCanvas, 0, 0, S, S);
+  const color = DOT_COLORS[state];
+  if (color) {
+    const cx = S - 4, cy = S - 4, r = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  return c;
+}
+
+function download(canvas, name) {
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, 'image/png');
+}
+
+function build() {
+  const guides = document.getElementById('guides').checked;
+  const grid = document.getElementById('grid');
+  grid.textContent = '';
+  for (const draft of drafts) {
+    const app = renderIcon(draft, APP, guides);
+    const mb = renderIcon(draft, MB, guides);
+    const mbClean = guides ? renderIcon(draft, MB, false) : mb;
+
+    const card = document.createElement('div'); card.className = 'card';
+    const h = document.createElement('h2'); h.textContent = draft.name;
+    const p = document.createElement('p'); p.textContent = draft.desc;
+    card.append(h, p);
+
+    const previews = document.createElement('div'); previews.className = 'previews';
+    for (const [canvas, cls, cap] of [[app, 'app', 'App 1024'], [mb, 'mb', 'Menubar 640']]) {
+      const fig = document.createElement('figure');
+      canvas.className = cls;
+      const fc = document.createElement('figcaption'); fc.textContent = cap;
+      fig.append(canvas, fc); previews.append(fig);
+    }
+    card.append(previews);
+
+    const strips = document.createElement('div'); strips.className = 'strips';
+    for (const mode of ['light', 'dark']) {
+      const strip = document.createElement('div'); strip.className = 'strip ' + mode;
+      const label = document.createElement('span');
+      label.textContent = (mode === 'light' ? '浅色菜单栏' : '深色菜单栏') + ' · 闲/忙/成/败';
+      strip.append(label);
+      for (const state of ['idle', 'busy', 'success', 'failure']) {
+        strip.append(renderMenuBarAt18(mbClean, state));
+      }
+      strips.append(strip);
+    }
+    card.append(strips);
+
+    const btns = document.createElement('div'); btns.className = 'btns';
+    const b1 = document.createElement('button');
+    b1.textContent = '导出 App 1024';
+    b1.onclick = () => download(renderIcon(draft, APP, false), 'joey-app-icon-' + draft.key + '.png');
+    const b2 = document.createElement('button');
+    b2.textContent = '导出 Menubar 640';
+    b2.onclick = () => download(renderIcon(draft, MB, false), 'joey-menubar-icon-' + draft.key + '.png');
+    btns.append(b1, b2);
+    card.append(btns);
+
+    grid.append(card);
+  }
+}
+
+document.getElementById('guides').addEventListener('change', build);
+build();
+</script>
+</body>
+</html>
