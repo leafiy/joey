@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+Vendor/_work/
+.DS_Store
