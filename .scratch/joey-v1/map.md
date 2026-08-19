@@ -32,6 +32,7 @@ joey v1 可用:常驻 menubar 的 SSH/SFTP 远程文件管理器,在用户机器
 - [02 rsync 检测与远程一键安装机制](issues/02-rsync-detect-and-install.md) — `command -v` 检测;apt→dnf→yum→zypper→pacman→apk→brew 探测安装;sudo 走 `-S` 喂 stdin 不开 PTY;密码认证主机永远 sftp;进度要求本地 Homebrew rsync ≥3.1 否则 `--progress` 逐文件解析(macOS 自带 rsync/openrsync 均不支持 `--info=progress2`)。
 - [04 leafiy-ui 通用拖放组件 API](issues/04-leafiy-ui-drag-components.md) — 三组件真机验证后合入 leafiy-ui main(`400aef5`,ADR-0009):`leafiyFileDrop`+标准高亮、`LeafiyMenuBarDropTarget`(status-bar window 覆盖层,1s 轮询重挂)、`LeafiyFilePromise` 拖出定纯 SwiftUI 惰性 file representation 引擎(临时文件双拷贝代价已知情接受;AppKit 直写备胎存分支历史)。
 - [05 面板 UI 定稿](issues/05-panel-ui.md) — A 变体定稿:顶部 Host Switcher + 面包屑行 + 行右键菜单;双层落点高亮(文件夹行 + 空白=当前目录);内嵌 Error Banner 横条;固定 360×520;呈现用 `.window` 样式 MenuBarExtra + Gear Menu 收家族 Menu Tail(Explicit Exception,joey ADR-0002);新词 Host Switcher / Gear Menu 入 CONTEXT.md。
+- [06 Joey 图标](issues/06-icons.md) — 用户自行出图(agent 草案落选):两张源图按 ICON_CONTRACT(1024 app + 640 menubar,给 Status-Dot 留角),落位沿 daisy 模式;接线与占位图归实施票。
 
 ## Not yet specified
 
