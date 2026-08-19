@@ -80,6 +80,8 @@ say "creating universal static libcrypto/libssl"
 mkdir -p "$UNIV/lib"
 rm -rf "$UNIV/include"
 cp -R "$WORK/openssl-out/arm64/include" "$UNIV/include"
+# Only libcrypto gets linked (libssh never uses libssl), but CMake's FindOpenSSL
+# probes for both libraries — keep libssl so the configure step succeeds.
 for lib in libcrypto libssl; do
     lipo -create \
         "$WORK/openssl-out/arm64/lib/$lib.a" \

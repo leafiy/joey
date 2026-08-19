@@ -326,7 +326,7 @@ final class SpikeSSHEngine {
         }
         _ = progress(received, total)
         remoteClosed = true
-        sftp_close(remote)
+        guard sftp_close(remote) == SSH_OK else { throw sftpError("close \(remotePath)") }
     }
 
     // MARK: - Errors

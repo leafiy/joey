@@ -132,9 +132,16 @@ func runCheck(_ cfg: CheckConfig) -> Int32 {
             print("RESULT: INTERRUPTED (Ctrl-C — cancel path worked if no FAIL above)")
             return 130
         }
-        let failed = results.contains { $0.status == .fail }
-        print(failed ? "RESULT: FAIL" : "RESULT: PASS")
-        return failed ? 1 : 0
+        if results.contains(where: { $0.status == .fail }) {
+            print("RESULT: FAIL")
+            return 1
+        }
+        if results.contains(where: { $0.status == .skip }) {
+            print("RESULT: PASS with skips — ticket 03 needs password AND ed25519 key auth both exercised")
+        } else {
+            print("RESULT: PASS")
+        }
+        return 0
     }
 
     let policy: SpikeSSHEngine.HostKeyPolicy = cfg.acceptUnknown ? .acceptUnknown : .strict
@@ -254,43 +261,70 @@ func runCheck(_ cfg: CheckConfig) -> Int32 {
         record("upload", .fail, "\(error)")
     }
 
-    // 5. Clean cancel: upload again, cancel mid-flight, session must stay usable.
-    if uploadOK {
-        let remoteCancel = cfg.remoteDir + "/joey-spike-cancel.bin"
-        let cancelLimit = min(UInt64(cfg.cancelAfterMB) << 20, wantedBytes / 2)
+    // 5. Clean cancel, both directions: cancel mid-flight, session must stay usable.
+    func runCancelTest(
+        _ label: String,
+        limit: UInt64,
+        transfer: ((UInt64, UInt64) -> Bool) throws -> Void,
+        cleanup: () -> Void
+    ) {
         var cancelIssued: Date?
+        let pp = ProgressPrinter(label)
         do {
-            let pp = ProgressPrinter("cancel-test upload")
-            try engine.upload(localPath: localBig, remotePath: remoteCancel, chunkSize: chunk) { done, total in
+            try transfer { done, total in
                 pp.update(done: done, total: total)
                 if gInterrupted != 0 { return false }
-                if done >= cancelLimit {
+                if done >= limit {
                     if cancelIssued == nil { cancelIssued = Date() }
                     return false
                 }
                 return true
             }
             print()
-            record("clean cancel", .fail, "transfer completed without honoring cancel")
+            record(label, .fail, "transfer completed without honoring cancel")
         } catch SpikeError.cancelled {
             print()
-            if gInterrupted != 0 { return summary() }
+            guard gInterrupted == 0 else { return }
             let ms = cancelIssued.map { Date().timeIntervalSince($0) * 1000 } ?? 0
             do {
                 _ = try engine.listDirectory(cfg.remoteDir)
-                try? engine.removeFile(remoteCancel)
+                cleanup()
                 record(
-                    "clean cancel", .pass,
-                    String(format: "stopped in %.0f ms at %ld MB, session still usable", ms, Int(cancelLimit >> 20)))
+                    label, .pass,
+                    String(format: "stopped in %.0f ms at %ld MB, session still usable", ms, Int(limit >> 20)))
             } catch {
-                record("clean cancel", .fail, "cancelled, but session unusable afterwards: \(error)")
+                record(label, .fail, "cancelled, but session unusable afterwards: \(error)")
             }
         } catch {
             print()
-            record("clean cancel", .fail, "\(error)")
+            record(label, .fail, "\(error)")
         }
+    }
+
+    if uploadOK {
+        let cancelLimit = min(UInt64(cfg.cancelAfterMB) << 20, srcSize / 2)
+        let remoteCancel = cfg.remoteDir + "/joey-spike-cancel.bin"
+        runCancelTest(
+            "clean cancel (upload)", limit: cancelLimit,
+            transfer: { progress in
+                try engine.upload(
+                    localPath: localBig, remotePath: remoteCancel, chunkSize: chunk, progress: progress)
+            },
+            cleanup: { try? engine.removeFile(remoteCancel) })
+        if gInterrupted != 0 { return summary() }
+
+        let localCancel = NSTemporaryDirectory() + "joey-spike-cancel-download.bin"
+        runCancelTest(
+            "clean cancel (download)", limit: cancelLimit,
+            transfer: { progress in
+                try engine.download(
+                    remotePath: remoteUpload, localPath: localCancel, chunkSize: chunk, progress: progress)
+            },
+            cleanup: { try? FileManager.default.removeItem(atPath: localCancel) })
+        if gInterrupted != 0 { return summary() }
     } else {
-        record("clean cancel", .skip, "upload failed")
+        record("clean cancel (upload)", .skip, "upload failed")
+        record("clean cancel (download)", .skip, "upload failed")
     }
 
     // 6. Download + integrity check.

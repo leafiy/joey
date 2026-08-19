@@ -17,11 +17,11 @@ Blocked by: 01
 
 运行清单(在 mac 上):
 
-1. `./Vendor/build-libssh.sh`(留意末尾打印的 SHA-256,对照官网核验)
+1. `./Vendor/build-libssh.sh`(下载完成后会立即打印两个 tarball 的 SHA-256,对照官网核验)
 2. `swift build`
 3. 全量验证(密码 + ed25519 密钥都给上,两种认证一次跑完):
    `JOEY_PW=<密码> .build/debug/joey-spike check --host <h> --user <u> --password-env JOEY_PW --key ~/.ssh/id_ed25519 --accept-unknown`
    - 密钥带口令加 `--ask-key-passphrase`;
    - `--list-dir` 默认 `/usr/bin`(需 >100 条目),`--remote-dir` 默认 `/tmp`(需可写);
-   - 500MB 测试文件自动生成于本地 tmp;`check` 内含自动取消测试(默认 64MB 处),Ctrl-C 亦可随时手动验证取消。
+   - 500MB 测试文件自动生成于本地 tmp;`check` 内含上传、下载各一次自动取消测试(默认 64MB 处),Ctrl-C 亦可随时手动验证取消;只给一种认证方式时结果会标注 PASS with skips。
 4. 回报:各步 PASS/FAIL、上传/下载 MB/s、cancel 毫秒数、有无异常输出。全 PASS 即 resolve 本票;传输速度不理想也请注明(决定要不要上 AIO)。
