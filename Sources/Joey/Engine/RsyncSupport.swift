@@ -86,6 +86,22 @@ enum RsyncSupport {
         return "sudo -n \(plan.manager.install)"
     }
 
+    static func isPermissionFailure(_ detail: String) -> Bool {
+        let normalized = detail.lowercased()
+        return [
+            "permission denied",
+            "not in the sudoers",
+            "not allowed to execute",
+            "may not run sudo",
+            "incorrect password",
+            "authentication failure",
+            "a password is required",
+            "no tty present",
+            "must be run as root",
+            "operation not permitted",
+        ].contains { normalized.contains($0) }
+    }
+
     // MARK: - Local binary
 
     struct LocalRsync {

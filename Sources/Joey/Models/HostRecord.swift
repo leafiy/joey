@@ -11,6 +11,7 @@ struct HostRecord: Identifiable, Codable, Equatable {
         case password
         case privateKey
     }
+    static let maxFavoriteCount = 3
 
     var id = UUID()
     var name: String = ""
@@ -24,13 +25,14 @@ struct HostRecord: Identifiable, Codable, Equatable {
     /// Optional fixed landing directory used whenever this host is activated.
     /// Empty preserves the Last Browsed Directory behavior.
     var defaultDirectory: String = ""
+    var isFavorite = false
     /// CONTEXT.md: Last Browsed Directory — the panel-drop landing point,
     /// updated on every browse.
     var lastBrowsedDirectory: String = ""
 
     private enum CodingKeys: String, CodingKey {
         case id, name, host, port, username, authMethod, password
-        case privateKeyPath, keyPassphrase, defaultDirectory, lastBrowsedDirectory
+        case privateKeyPath, keyPassphrase, defaultDirectory, isFavorite, lastBrowsedDirectory
     }
 
     init() {}
@@ -51,6 +53,8 @@ struct HostRecord: Identifiable, Codable, Equatable {
             (try? container.decode(String.self, forKey: .keyPassphrase)) ?? ""
         defaultDirectory =
             (try? container.decode(String.self, forKey: .defaultDirectory)) ?? ""
+        isFavorite =
+            (try? container.decode(Bool.self, forKey: .isFavorite)) ?? false
         lastBrowsedDirectory =
             (try? container.decode(String.self, forKey: .lastBrowsedDirectory)) ?? ""
     }
@@ -59,6 +63,10 @@ struct HostRecord: Identifiable, Codable, Equatable {
         if !defaultDirectory.isEmpty { return defaultDirectory }
         if !lastBrowsedDirectory.isEmpty { return lastBrowsedDirectory }
         return nil
+    }
+
+    var favoriteDirectory: String {
+        browserStartDirectory ?? "/"
     }
 
     var displayName: String {
@@ -87,8 +95,8 @@ struct HostRecord: Identifiable, Codable, Equatable {
     var supportsRsync: Bool { authMethod == .privateKey && !privateKeyPath.isEmpty }
 
     /// True when `other` reaches the same endpoint with the same credentials —
-    /// the fields whose change invalidates a cached connection. Display name
-    /// and Last Browsed Directory don't count.
+    /// the fields whose change invalidates a cached connection. Display and
+    /// browsing preferences don't count.
     func connectionEquals(_ other: HostRecord) -> Bool {
         host == other.host && port == other.port && username == other.username
             && authMethod == other.authMethod && password == other.password
@@ -96,17 +104,3 @@ struct HostRecord: Identifiable, Codable, Equatable {
     }
 }
 
-/// A favorite remote drop target (ticket 08): one Host Record + one remote
-/// directory. At most `Favorite.maxCount` may be configured.
-struct Favorite: Identifiable, Codable, Equatable {
-    static let maxCount = 3
-
-    var id = UUID()
-    var hostID: UUID
-    var directory: String
-
-    func displayLabel(hosts: [HostRecord]) -> String {
-        let hostName = hosts.first(where: { $0.id == hostID })?.displayName ?? "?"
-        return "\(hostName) : \(directory)"
-    }
-}

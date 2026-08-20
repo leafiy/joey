@@ -1,26 +1,32 @@
 import Foundation
 import LeafiyUICore
 
-/// Joey's one settings document: family-standard fields plus Host Records and
-/// Favorites. Persisted as plaintext JSON — including passwords and key
-/// passphrases — per leafiy-ui ADR-0002; the Privacy pane states this.
+/// Joey's settings document: family-standard fields plus Host Records.
+/// Persisted as plaintext JSON — including passwords and key passphrases —
+/// per leafiy-ui ADR-0002; the Privacy pane states this.
 struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     var appLanguage: String = AppLanguage.system.rawValue
     var launchAtLogin: Bool = false
     var applicationIconMode: LeafiyApplicationIconMode = .menuBar
+    var showHiddenFiles = false
 
     var hosts: [HostRecord] = []
     var activeHostID: UUID?
-    var favorites: [Favorite] = []
 
     static var defaults: AppSettings { AppSettings() }
 
     func normalized() -> AppSettings {
         var settings = self
-        // Favorites: cap at the max, and drop entries whose host is gone.
+        var favoriteCount = 0
+        for index in settings.hosts.indices where settings.hosts[index].isFavorite {
+            if favoriteCount < HostRecord.maxFavoriteCount {
+                favoriteCount += 1
+            } else {
+                settings.hosts[index].isFavorite = false
+            }
+        }
+
         let hostIDs = Set(settings.hosts.map(\.id))
-        settings.favorites = Array(
-            settings.favorites.filter { hostIDs.contains($0.hostID) }.prefix(Favorite.maxCount))
         if let active = settings.activeHostID, !hostIDs.contains(active) {
             settings.activeHostID = nil
         }
@@ -33,7 +39,8 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     // Tolerant decoding: any missing or legacy field falls back to defaults so
     // old settings files keep loading.
     enum CodingKeys: String, CodingKey {
-        case appLanguage, launchAtLogin, applicationIconMode, hosts, activeHostID, favorites
+        case appLanguage, launchAtLogin, applicationIconMode, showHiddenFiles
+        case hosts, activeHostID, favorites
     }
 
     init() {}
@@ -48,10 +55,34 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
         applicationIconMode =
             (try? container.decode(LeafiyApplicationIconMode.self, forKey: .applicationIconMode))
             ?? defaults.applicationIconMode
+        showHiddenFiles =
+            (try? container.decode(Bool.self, forKey: .showHiddenFiles))
+            ?? defaults.showHiddenFiles
         hosts = (try? container.decode([HostRecord].self, forKey: .hosts)) ?? defaults.hosts
         activeHostID = try? container.decode(UUID.self, forKey: .activeHostID)
-        favorites =
-            (try? container.decode([Favorite].self, forKey: .favorites)) ?? defaults.favorites
+
+        let legacyFavorites =
+            (try? container.decode([LegacyFavorite].self, forKey: .favorites)) ?? []
+        var favoriteCount = hosts.count(where: \.isFavorite)
+        for favorite in legacyFavorites where favoriteCount < HostRecord.maxFavoriteCount {
+            guard let index = hosts.firstIndex(where: { $0.id == favorite.hostID }),
+                  !hosts[index].isFavorite else { continue }
+            hosts[index].isFavorite = true
+            if hosts[index].defaultDirectory.isEmpty {
+                hosts[index].defaultDirectory = favorite.directory
+            }
+            favoriteCount += 1
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(appLanguage, forKey: .appLanguage)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+        try container.encode(applicationIconMode, forKey: .applicationIconMode)
+        try container.encode(showHiddenFiles, forKey: .showHiddenFiles)
+        try container.encode(hosts, forKey: .hosts)
+        try container.encodeIfPresent(activeHostID, forKey: .activeHostID)
     }
 
     var selectedAppLanguage: AppLanguage {
@@ -62,6 +93,15 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     var activeHost: HostRecord? {
         hosts.first(where: { $0.id == activeHostID }) ?? hosts.first
     }
+
+    var favoriteHosts: [HostRecord] {
+        Array(hosts.lazy.filter(\.isFavorite).prefix(HostRecord.maxFavoriteCount))
+    }
+}
+
+private struct LegacyFavorite: Decodable {
+    let hostID: UUID
+    let directory: String
 }
 
 final class SettingsStore {

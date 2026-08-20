@@ -14,8 +14,10 @@ struct JoeySettingsView: View {
                 applicationIconMode: settingsBinding(\.applicationIconMode)
             )
             HostsPane(model: model)
-            FavoritesPane(model: model)
             privacyPane
+        }
+        .sheet(item: $model.rsyncInstall) { flow in
+            RsyncInstallSheet(flow: flow, model: model)
         }
     }
 
@@ -126,6 +128,9 @@ private struct HostSection: View {
                 .autocorrectionDisabled()
             TextField(L("Default directory"), text: binding(\.defaultDirectory))
                 .autocorrectionDisabled()
+            Toggle(L("Favorite"), isOn: binding(\.isFavorite))
+                .disabled(favoriteLimitReached)
+                .help(L("Favorite drops use this host’s default or last browsed directory."))
             Picker(L("Authentication"), selection: binding(\.authMethod)) {
                 Text(L("Password")).tag(HostRecord.AuthMethod.password)
                 Text(L("Private Key")).tag(HostRecord.AuthMethod.privateKey)
@@ -157,6 +162,7 @@ private struct HostSection: View {
                 }
                 SecureField(L("Key passphrase (optional)"), text: binding(\.keyPassphrase))
             }
+            rsyncControls
             HStack {
                 if model.settings.activeHostID == record.id {
                     Label(L("Active Host"), systemImage: "checkmark")
@@ -175,6 +181,86 @@ private struct HostSection: View {
                 .font(.caption)
             }
         }
+        .task {
+            await model.detectRsync(for: record.id)
+        }
+        .onChange(of: record) { oldRecord, newRecord in
+            guard !oldRecord.connectionEquals(newRecord) else { return }
+            Task { await model.detectRsync(for: newRecord.id) }
+        }
+    }
+
+    private var rsyncControls: some View {
+        VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xs) {
+            HStack(spacing: LeafiyDesign.Spacing.s) {
+                Text(L("rsync acceleration"))
+                Spacer()
+                rsyncStatusControl
+            }
+            rsyncStatusDetail
+        }
+    }
+
+    @ViewBuilder
+    private var rsyncStatusControl: some View {
+        switch model.rsyncStatus(for: record.id) {
+        case .checking:
+            ProgressView()
+                .controlSize(.small)
+            Text(L("Checking…"))
+                .foregroundStyle(.secondary)
+        case .enabled:
+            Label(L("Enabled"), systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .missing:
+            Label(L("Not installed"), systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Button(L("Install Automatically…")) {
+                model.beginRsyncInstall(for: record.id)
+            }
+            .buttonStyle(.borderless)
+        case .unavailable:
+            Text(L("Unavailable"))
+                .foregroundStyle(.secondary)
+        case .failed:
+            Label(L("Detection failed"), systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+            Button(L("Retry")) {
+                Task { await model.detectRsync(for: record.id, force: true) }
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    @ViewBuilder
+    private var rsyncStatusDetail: some View {
+        switch model.rsyncStatus(for: record.id) {
+        case .enabled(let banner):
+            Text(banner)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        case .unavailable(let reason):
+            Text(reason)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .failed(let reason):
+            Text(reason)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(3)
+        case .checking, .missing:
+            EmptyView()
+        }
+    }
+
+    private var isFavorite: Bool {
+        model.settings.hosts.first(where: { $0.id == record.id })?.isFavorite
+            ?? record.isFavorite
+    }
+
+    private var favoriteLimitReached: Bool {
+        !isFavorite && model.settings.favoriteHosts.count >= HostRecord.maxFavoriteCount
     }
 
     private static let commonPrivateKeyNames = [
@@ -260,101 +346,3 @@ private struct HostSection: View {
     }
 }
 
-// MARK: - Favorites (ticket 08)
-
-private struct FavoritesPane: View {
-    @ObservedObject var model: JoeyModel
-
-    var body: some View {
-        SettingsPane(L("Favorites"), systemImage: "star", height: 420) {
-            Section {
-                Text(L("favorites.explainer"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(model.settings.favorites) { favorite in
-                FavoriteSection(model: model, favorite: favorite)
-            }
-            Section {
-                Button(L("Add Favorite")) {
-                    model.updateSettings { settings in
-                        guard settings.favorites.count < Favorite.maxCount,
-                              let host = settings.activeHost ?? settings.hosts.first else { return }
-                        let directory = host.lastBrowsedDirectory.isEmpty
-                            ? "/" : host.lastBrowsedDirectory
-                        settings.favorites.append(
-                            Favorite(hostID: host.id, directory: directory))
-                    }
-                }
-                .disabled(
-                    model.settings.hosts.isEmpty
-                        || model.settings.favorites.count >= Favorite.maxCount)
-                if model.settings.favorites.count >= Favorite.maxCount {
-                    Text(L("Up to three favorites."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-}
-
-private struct FavoriteSection: View {
-    @ObservedObject var model: JoeyModel
-    let favorite: Favorite
-
-    var body: some View {
-        Section {
-            Picker(L("Host"), selection: hostBinding) {
-                ForEach(model.settings.hosts) { host in
-                    Text(host.displayName).tag(host.id)
-                }
-            }
-            TextField(L("Remote directory"), text: directoryBinding)
-                .autocorrectionDisabled()
-            HStack {
-                Spacer()
-                Button(L("Remove"), role: .destructive) {
-                    model.updateSettings { settings in
-                        settings.favorites.removeAll { $0.id == favorite.id }
-                    }
-                }
-                .font(.caption)
-            }
-        }
-    }
-
-    private var hostBinding: Binding<UUID> {
-        let id = favorite.id
-        let fallback = favorite.hostID
-        return Binding(
-            get: {
-                model.settings.favorites.first(where: { $0.id == id })?.hostID ?? fallback
-            },
-            set: { value in
-                model.updateSettings { settings in
-                    if let index = settings.favorites.firstIndex(where: { $0.id == id }) {
-                        settings.favorites[index].hostID = value
-                    }
-                }
-            }
-        )
-    }
-
-    private var directoryBinding: Binding<String> {
-        let id = favorite.id
-        let fallback = favorite.directory
-        return Binding(
-            get: {
-                model.settings.favorites.first(where: { $0.id == id })?.directory ?? fallback
-            },
-            set: { value in
-                model.updateSettings { settings in
-                    if let index = settings.favorites.firstIndex(where: { $0.id == id }) {
-                        settings.favorites[index].directory = value
-                    }
-                }
-            }
-        )
-    }
-}

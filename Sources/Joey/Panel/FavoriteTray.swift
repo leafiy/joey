@@ -3,9 +3,9 @@ import LeafiyUI
 import SwiftUI
 
 /// The Favorite Tray (CONTEXT.md): a floating drop surface under the menu-bar
-/// icon, shown while a drag hovers the icon and at least one Favorite exists.
-/// Each Favorite is one drop row; dropping uploads straight to that host and
-/// directory.
+/// icon, shown while a drag hovers the icon and at least one Host is favorited.
+/// Each favorite Host is one drop row; dropping uploads to its configured
+/// landing directory.
 @MainActor
 final class FavoriteTrayController {
     private weak var model: JoeyModel?
@@ -18,7 +18,7 @@ final class FavoriteTrayController {
 
     func show() {
         cancelHide()
-        guard let model, !model.settings.favorites.isEmpty else { return }
+        guard let model, !model.settings.favoriteHosts.isEmpty else { return }
         let content = FavoriteTrayView(model: model)
         if let panel {
             panel.setContent(content)
@@ -89,8 +89,8 @@ struct FavoriteTrayView: View {
             Text(L("Drop to upload"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(model.settings.favorites) { favorite in
-                FavoriteTrayRow(model: model, favorite: favorite)
+            ForEach(model.settings.favoriteHosts) { host in
+                FavoriteTrayRow(model: model, host: host)
             }
         }
         .padding(LeafiyDesign.Spacing.m)
@@ -105,12 +105,8 @@ struct FavoriteTrayView: View {
 
 private struct FavoriteTrayRow: View {
     @ObservedObject var model: JoeyModel
-    let favorite: Favorite
+    let host: HostRecord
     @State private var targeted = false
-
-    private var hostName: String {
-        model.settings.hosts.first(where: { $0.id == favorite.hostID })?.displayName ?? "?"
-    }
 
     var body: some View {
         HStack(spacing: LeafiyDesign.Spacing.s) {
@@ -118,9 +114,9 @@ private struct FavoriteTrayRow: View {
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.xxs) {
-                Text(hostName)
+                Text(host.displayName)
                     .lineLimit(1)
-                Text(favorite.directory)
+                Text(host.favoriteDirectory)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -135,7 +131,7 @@ private struct FavoriteTrayRow: View {
             in: RoundedRectangle(cornerRadius: LeafiyDesign.Radius.control))
         .contentShape(Rectangle())
         .leafiyFileDrop(isTargeted: $targeted) { urls in
-            model.favoriteDrop(urls, favorite: favorite)
+            model.favoriteDrop(urls, host: host)
         }
         .leafiyDropHighlight(targeted)
         .onChange(of: targeted) { _, inside in

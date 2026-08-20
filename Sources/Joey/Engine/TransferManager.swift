@@ -29,6 +29,8 @@ final class TransferManager: ObservableObject {
     private var remoteRsync: [UUID: RsyncSupport.RemoteState] = [:]
     private let localRsync = RsyncSupport.findLocalRsync()
 
+    var isLocalRsyncAvailable: Bool { localRsync != nil }
+
     // MARK: - Status-Dot bookkeeping
 
     private func began() {

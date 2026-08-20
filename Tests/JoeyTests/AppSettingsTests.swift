@@ -8,7 +8,7 @@ final class AppSettingsTests: XCTestCase {
             .appendingPathComponent("settings.json")
     }
 
-    func testRoundTripPersistsHostsAndFavorites() throws {
+    func testRoundTripPersistsHostsAndPreferences() throws {
         let store = SettingsStore(fileURL: tempFileURL())
         var settings = AppSettings.defaults
         var host = HostRecord()
@@ -18,14 +18,15 @@ final class AppSettingsTests: XCTestCase {
         host.authMethod = .privateKey
         host.privateKeyPath = "~/.ssh/id_ed25519"
         host.defaultDirectory = "/srv/apps"
+        host.isFavorite = true
+        settings.showHiddenFiles = true
         settings.hosts = [host]
         settings.activeHostID = host.id
-        settings.favorites = [Favorite(hostID: host.id, directory: "/var/www")]
 
         try store.save(settings)
         let loaded = store.load()
         XCTAssertEqual(loaded.hosts, settings.hosts)
-        XCTAssertEqual(loaded.favorites, settings.favorites)
+        XCTAssertTrue(loaded.showHiddenFiles)
         XCTAssertEqual(loaded.activeHostID, host.id)
     }
 
@@ -66,26 +67,52 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(host.browserStartDirectory, "/srv/default")
     }
 
-    func testNormalizedCapsFavoritesAtThree() {
+    func testNormalizedCapsFavoriteHostsAtThree() {
         var settings = AppSettings.defaults
-        let host = HostRecord()
-        settings.hosts = [host]
-        settings.favorites = (0..<5).map { i in
-            Favorite(hostID: host.id, directory: "/dir\(i)")
+        settings.hosts = (0..<5).map { index in
+            var host = HostRecord()
+            host.name = "host-\(index)"
+            host.isFavorite = true
+            return host
         }
-        XCTAssertEqual(settings.normalized().favorites.count, Favorite.maxCount)
+
+        let normalized = settings.normalized()
+        XCTAssertEqual(normalized.favoriteHosts.count, HostRecord.maxFavoriteCount)
+        XCTAssertEqual(normalized.favoriteHosts.map(\.name), ["host-0", "host-1", "host-2"])
     }
 
-    func testNormalizedDropsFavoritesForMissingHosts() {
-        var settings = AppSettings.defaults
-        let host = HostRecord()
-        settings.hosts = [host]
-        settings.favorites = [
-            Favorite(hostID: host.id, directory: "/keep"),
-            Favorite(hostID: UUID(), directory: "/dangling"),
-        ]
-        let normalized = settings.normalized()
-        XCTAssertEqual(normalized.favorites.map(\.directory), ["/keep"])
+    func testLegacyFavoritesMigrateIntoMatchingHosts() throws {
+        let json = Data(
+            #"""
+            {
+              "hosts": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "name": "legacy",
+                "host": "example.com",
+                "port": 22,
+                "username": "deploy",
+                "authMethod": "password",
+                "password": "secret",
+                "privateKeyPath": "",
+                "keyPassphrase": "",
+                "lastBrowsedDirectory": ""
+              }],
+              "favorites": [{
+                "id": "00000000-0000-0000-0000-000000000002",
+                "hostID": "00000000-0000-0000-0000-000000000001",
+                "directory": "/srv/drop"
+              }, {
+                "id": "00000000-0000-0000-0000-000000000003",
+                "hostID": "00000000-0000-0000-0000-000000000004",
+                "directory": "/missing"
+              }]
+            }
+            """#.utf8)
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: json)
+        XCTAssertEqual(decoded.favoriteHosts.map(\.name), ["legacy"])
+        XCTAssertEqual(decoded.hosts[0].defaultDirectory, "/srv/drop")
+        XCTAssertEqual(decoded.hosts[0].favoriteDirectory, "/srv/drop")
     }
 
     func testNormalizedRepairsActiveHost() {
@@ -100,7 +127,8 @@ final class AppSettingsTests: XCTestCase {
         let json = Data(#"{"appLanguage":"zh-Hans"}"#.utf8)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: json)
         XCTAssertEqual(decoded.appLanguage, "zh-Hans")
+        XCTAssertFalse(decoded.showHiddenFiles)
         XCTAssertTrue(decoded.hosts.isEmpty)
-        XCTAssertTrue(decoded.favorites.isEmpty)
+        XCTAssertTrue(decoded.favoriteHosts.isEmpty)
     }
 }

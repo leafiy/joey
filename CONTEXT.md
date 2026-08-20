@@ -13,7 +13,7 @@ _Avoid_: server、connection、profile
 _Avoid_: current server、session
 
 **Browser**:
-面板里的远程目录视图:单列列表 + 面包屑,懒加载。
+面板里的远程目录视图:单列列表 + 面包屑,懒加载;Gear Menu 可切换隐藏文件,目录读取与文件传输共用一套等待指示。
 _Avoid_: explorer、finder
 
 **Default Directory**:
@@ -31,11 +31,11 @@ _Avoid_: import
 把本地文件直接拖到 menubar 图标:配置了 Favorite 时弹出 Favorite Tray 直接投放;没有 Favorite 时打开主面板落到 Browser。
 
 **Favorite**:
-设置里收藏的一个远程落点 = Host Record + 远程目录,最多三个;是 Icon Drop 的直达目标。
+Host Record 上的收藏开关,最多开启三个;Icon Drop 以该 Host 的 Default Directory 为直达落点,未配置时使用 Last Browsed Directory。
 _Avoid_: bookmark、pinned folder
 
 **Favorite Tray**:
-拖文件悬停 menubar 图标时弹出的小面板,每个 Favorite 一个落点行,拖上即传。
+拖文件悬停 menubar 图标时弹出的小面板,每个已收藏 Host 一个落点行,拖上即传。
 _Avoid_: quick drop menu
 
 **Drag-out**:
@@ -45,6 +45,10 @@ _Avoid_: export、save as
 **Transfer**:
 一次上传或下载;能走 rsync 就走 rsync,否则 sftp。用户不感知协议切换。
 _Avoid_: sync、copy job
+
+**rsync Acceleration**:
+私钥认证 Host 的上传加速路径;Host 设置自动检测本机与远程 rsync 并显示启用状态。远程缺失时可自动安装:root/NOPASSWD 直接执行,需要 sudo 时临时输入密码,权限不足则显示明确错误并继续回退 sftp。
+
 
 **Error Banner**:
 面板顶部可关闭的一条错误概要(哪个文件、什么错);与 Status-Dot 错误态一起构成全部失败反馈——无弹窗、无系统通知。

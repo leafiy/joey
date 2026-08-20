@@ -2,8 +2,8 @@ import Foundation
 
 /// State of the panel's remote directory view (CONTEXT.md: Browser) for the
 /// Active Host: current path, lazily loaded entries, and the three v1 file
-/// operations. Sorting is fixed: folders first, then by name; dotfiles always
-/// visible.
+/// operations. Entries sort folders first, then by name; visibility filtering
+/// is a presentation preference.
 @MainActor
 final class BrowserModel: ObservableObject {
     @Published private(set) var path: String = "/"

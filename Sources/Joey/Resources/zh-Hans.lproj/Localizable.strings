@@ -15,6 +15,9 @@
 "Configure Hosts…" = "配置主机…";
 "No Host" = "无主机";
 "Refresh" = "刷新";
+"Show Hidden Files" = "显示隐藏文件";
+"Listing directory…" = "正在列出目录…";
+"Copying…" = "正在复制…";
 "Host setup incomplete" = "主机配置未完成";
 "Set a user and password or private key in Settings." = "请在设置中填写用户名和密码或私钥路径。";
 "Configure a host before uploading." = "请先配置主机再上传文件。";
@@ -39,6 +42,19 @@
 "Done" = "完成";
 "Close" = "关闭";
 "Install" = "安装";
+"rsync acceleration" = "rsync 传输加速";
+"Checking…" = "正在检测…";
+"Enabled" = "已启用";
+"Not installed" = "未安装";
+"Install Automatically…" = "自动安装…";
+"Unavailable" = "不可用";
+"Detection failed" = "检测失败";
+"Retry" = "重试";
+"Host not found." = "主机不存在。";
+"Complete the host configuration to check rsync." = "请先完成主机配置再检测 rsync。";
+"Private key authentication is required for rsync acceleration." = "rsync 传输加速需要使用私钥认证。";
+"No local rsync executable was found on this Mac." = "本机未找到可执行的 rsync。";
+"Insufficient permission to install rsync." = "权限不足，无法安装 rsync。";
 
 /* Favorite Tray */
 "Favorites" = "收藏";
@@ -56,6 +72,8 @@
 "Port" = "端口";
 "User" = "用户名";
 "Default directory" = "默认目录";
+"Favorite" = "收藏";
+"Favorite drops use this host’s default or last browsed directory." = "收藏投放使用此主机的默认目录或上次浏览目录。";
 "Authentication" = "认证方式";
 "Password" = "密码";
 "Private Key" = "私钥";
@@ -69,11 +87,6 @@
 "Make Active" = "设为当前";
 "Remove" = "移除";
 
-/* Settings — Favorites */
-"favorites.explainer" = "收藏是即投即达的落点:把文件拖到菜单栏图标即弹出收藏面板。没有收藏时,拖拽会打开主面板。";
-"Add Favorite" = "添加收藏";
-"Up to three favorites." = "最多三个收藏。";
-"Remote directory" = "远程目录";
 
 /* Settings — Privacy */
 "Privacy" = "隐私";

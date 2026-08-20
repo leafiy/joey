@@ -22,6 +22,49 @@ final class RsyncSupportTests: XCTestCase {
         }
     }
 
+    func testHostStatusMapsRemoteDetectionResults() {
+        XCTAssertEqual(
+            RsyncHostStatus(remoteState: .present(banner: "rsync 3.2.7")),
+            .enabled(banner: "rsync 3.2.7"))
+        XCTAssertEqual(
+            RsyncHostStatus(remoteState: .missing),
+            .missing)
+        XCTAssertEqual(
+            RsyncHostStatus(remoteState: .unknown(detail: "probe failed")),
+            .failed("probe failed"))
+    }
+
+    func testPermissionFailureDetection() {
+        XCTAssertTrue(RsyncSupport.isPermissionFailure(
+            "deploy is not in the sudoers file. This incident will be reported."))
+        XCTAssertTrue(RsyncSupport.isPermissionFailure("sudo: 3 incorrect password attempts"))
+        XCTAssertTrue(RsyncSupport.isPermissionFailure("Permission denied"))
+        XCTAssertFalse(RsyncSupport.isPermissionFailure("Unable to locate package rsync"))
+    }
+
+    @MainActor
+    func testPasswordHostReportsAccelerationUnavailableWithoutRemoteProbe() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("joey-rsync-status-\(UUID().uuidString).json")
+        let store = SettingsStore(fileURL: fileURL)
+        var settings = AppSettings.defaults
+        var host = HostRecord()
+        host.host = "example.com"
+        host.username = "deploy"
+        host.password = "secret"
+        settings.hosts = [host]
+        settings.activeHostID = host.id
+        try store.save(settings)
+
+        let model = JoeyModel(store: store)
+        await model.detectRsync(for: host.id)
+
+        guard case .unavailable = model.rsyncStatus(for: host.id) else {
+            return XCTFail("password authentication must not report rsync acceleration enabled")
+        }
+        XCTAssertFalse(model.rsyncMissingOnActiveHost)
+    }
+
     func testInstallPlanSudoLadder() {
         // Root: no sudo wrapper.
         let root = RsyncSupport.installPlan(managerName: "apt-get", isRoot: true, hasNopasswdSudo: false)

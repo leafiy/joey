@@ -40,6 +40,10 @@ struct PanelRootView: View {
                 breadcrumb
                 Divider()
             }
+            if let activityText {
+                activityStrip(activityText)
+                Divider()
+            }
             if let banner = bannerText {
                 errorStrip(banner)
                 Divider()
@@ -148,6 +152,7 @@ struct PanelRootView: View {
     private var gearMenu: some View {
         Menu {
             LeafiyFamilyMenu(language: model.language) {
+                Toggle(L("Show Hidden Files"), isOn: showHiddenFilesBinding)
                 Button(L("Refresh")) {
                     Task { await browser.refresh() }
                 }
@@ -187,12 +192,39 @@ struct PanelRootView: View {
                 .padding(.horizontal, LeafiyDesign.Spacing.m)
                 .padding(.vertical, LeafiyDesign.Spacing.s)
             }
-            if browser.isLoading || transfers.activeCount > 0 {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(.trailing, LeafiyDesign.Spacing.m)
-            }
         }
+    }
+
+    private var showHiddenFilesBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showHiddenFiles },
+            set: { show in model.updateSettings { $0.showHiddenFiles = show } }
+        )
+    }
+
+    private var hasVisibleEntries: Bool {
+        model.settings.showHiddenFiles
+            ? !browser.entries.isEmpty
+            : browser.entries.contains { !$0.name.hasPrefix(".") }
+    }
+
+    private var activityText: String? {
+        if transfers.activeCount > 0 { return L("Copying…") }
+        if browser.isLoading { return L("Listing directory…") }
+        return nil
+    }
+
+    private func activityStrip(_ text: String) -> some View {
+        HStack(spacing: LeafiyDesign.Spacing.s) {
+            ProgressView()
+                .controlSize(.small)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, LeafiyDesign.Spacing.m)
+        .padding(.vertical, LeafiyDesign.Spacing.xs)
     }
 
     // MARK: - Error Banner
@@ -237,7 +269,11 @@ struct PanelRootView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Button(L("Install…")) { model.beginRsyncInstall() }
+            Button(L("Install…")) {
+                if let hostID = model.settings.activeHost?.id {
+                    model.beginRsyncInstall(for: hostID)
+                }
+            }
                 .font(.caption)
                 .buttonStyle(.borderless)
         }
@@ -268,7 +304,7 @@ struct PanelRootView: View {
                 model.panelDrop(urls, into: browser.path)
             }
             .leafiyDropHighlight(listTargeted)
-        } else if browser.entries.isEmpty {
+        } else if !hasVisibleEntries && !browser.isLoading {
             EmptyStateView(
                 systemImage: "folder",
                 title: L("Empty folder"),
@@ -282,7 +318,9 @@ struct PanelRootView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(browser.entries) { entry in
-                        row(entry)
+                        if model.settings.showHiddenFiles || !entry.name.hasPrefix(".") {
+                            row(entry)
+                        }
                     }
                 }
                 .padding(.vertical, LeafiyDesign.Spacing.xs)
@@ -347,6 +385,7 @@ private struct PanelRow: View {
     let promise: () -> LeafiyFilePromise?
 
     @State private var targeted = false
+    @State private var hovering = false
 
     var body: some View {
         if entry.isDirectory {
@@ -391,6 +430,9 @@ private struct PanelRow: View {
         .padding(.horizontal, LeafiyDesign.Spacing.m)
         .padding(.vertical, LeafiyDesign.Spacing.s)
         .contentShape(Rectangle())
+        .background(Color.primary.opacity(hovering ? 0.055 : 0))
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.1), value: hovering)
     }
 }
 
@@ -398,9 +440,9 @@ func formatBytes(_ bytes: UInt64) -> String {
     ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
 }
 
-/// The rsync one-click-install sheet: shows the exact command before running
-/// it; sudo password (when needed) is fed to stdin over the exec channel.
-private struct RsyncInstallSheet: View {
+/// The rsync install sheet keeps the selected command visible while probing,
+/// running, or waiting for a sudo password.
+struct RsyncInstallSheet: View {
     @ObservedObject var flow: RsyncInstallFlow
     let model: JoeyModel
 

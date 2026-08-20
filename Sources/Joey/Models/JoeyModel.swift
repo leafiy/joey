@@ -8,6 +8,30 @@ import UniformTypeIdentifiers
 /// Joey's central state: the settings document, per-host session cache,
 /// Browser state, Transfers, and the two Icon Drop surfaces (Favorite Tray /
 /// main panel).
+enum RsyncHostStatus: Equatable {
+    case checking
+    case enabled(banner: String)
+    case missing
+    case unavailable(String)
+    case failed(String)
+
+    init(remoteState: RsyncSupport.RemoteState) {
+        switch remoteState {
+        case .present(let banner):
+            self = .enabled(banner: banner)
+        case .missing:
+            self = .missing
+        case .unknown(let detail):
+            self = .failed(detail)
+        }
+    }
+
+    var isMissing: Bool {
+        if case .missing = self { return true }
+        return false
+    }
+}
+
 @MainActor
 final class JoeyModel: ObservableObject {
     @Published private(set) var settings: AppSettings
@@ -18,6 +42,7 @@ final class JoeyModel: ObservableObject {
     /// True when the Active Host is key-auth but its remote has no rsync —
     /// drives the panel's install hint strip.
     @Published private(set) var rsyncMissingOnActiveHost = false
+    @Published private(set) var rsyncStatuses: [UUID: RsyncHostStatus] = [:]
 
     let transfers = TransferManager()
     let browser = BrowserModel()
@@ -52,11 +77,15 @@ final class JoeyModel: ObservableObject {
                !old.connectionEquals(host) {
                 sessions[host.id]?.disconnect()
                 sessions[host.id] = nil
+                transfers.invalidateRsyncState(hostID: host.id)
+                rsyncStatuses[host.id] = nil
             }
         }
         for removed in previous.hosts.map(\.id) where !next.hosts.contains(where: { $0.id == removed }) {
             sessions[removed]?.disconnect()
             sessions[removed] = nil
+            transfers.invalidateRsyncState(hostID: removed)
+            rsyncStatuses[removed] = nil
         }
 
         let activeChanged = next.activeHostID != previous.activeHostID
@@ -150,11 +179,11 @@ final class JoeyModel: ObservableObject {
 
     // MARK: - Icon Drop (ticket 08)
 
-    /// Drag hovers the menu-bar icon: Favorites → Favorite Tray; none → the
-    /// main panel, so the drop can land in the Browser.
+    /// Drag hovers the menu-bar icon: favorite Hosts → Favorite Tray; none →
+    /// the main panel, so the drop can land in the Browser.
     func iconDragChanged(_ inside: Bool) {
         if inside {
-            if settings.favorites.isEmpty {
+            if settings.favoriteHosts.isEmpty {
                 openPanelForDrop()
             } else {
                 favoriteTray.show()
@@ -165,22 +194,20 @@ final class JoeyModel: ObservableObject {
     }
 
     /// Files released on the icon itself (not on a tray row or in the panel):
-    /// first Favorite when one exists, else the Active Host's Last Browsed
-    /// Directory.
+    /// first favorite Host when one exists, else the Active Host's Last
+    /// Browsed Directory.
     func iconDrop(_ urls: [URL]) {
         favoriteTray.hide()
-        if let favorite = settings.favorites.first,
-           let host = settings.hosts.first(where: { $0.id == favorite.hostID }) {
-            upload(urls, to: favorite.directory, host: host)
+        if let host = settings.favoriteHosts.first {
+            upload(urls, to: host.favoriteDirectory, host: host)
         } else if let host = settings.activeHost, host.isComplete {
             upload(urls, to: host.lastBrowsedDirectory, host: host)
         }
     }
 
-    func favoriteDrop(_ urls: [URL], favorite: Favorite) {
+    func favoriteDrop(_ urls: [URL], host: HostRecord) {
         favoriteTray.hide()
-        guard let host = settings.hosts.first(where: { $0.id == favorite.hostID }) else { return }
-        upload(urls, to: favorite.directory, host: host)
+        upload(urls, to: host.favoriteDirectory, host: host)
     }
 
     private func openPanelForDrop() {
@@ -208,35 +235,93 @@ final class JoeyModel: ObservableObject {
         }
     }
 
-    // MARK: - rsync detect & install (ticket 02 mechanics)
+    // MARK: - rsync detect & install
+
+    func rsyncStatus(for hostID: UUID) -> RsyncHostStatus {
+        if let status = rsyncStatuses[hostID] { return status }
+        guard let host = settings.hosts.first(where: { $0.id == hostID }) else {
+            return .unavailable(L("Host not found."))
+        }
+        if !host.isComplete {
+            return .unavailable(L("Complete the host configuration to check rsync."))
+        }
+        if !host.supportsRsync {
+            return .unavailable(L("Private key authentication is required for rsync acceleration."))
+        }
+        if !transfers.isLocalRsyncAvailable {
+            return .unavailable(L("No local rsync executable was found on this Mac."))
+        }
+        return .checking
+    }
+
+    func detectRsync(for hostID: UUID, force: Bool = false) async {
+        guard let host = settings.hosts.first(where: { $0.id == hostID }) else {
+            rsyncStatuses[hostID] = nil
+            return
+        }
+        guard host.isComplete else {
+            setRsyncStatus(
+                .unavailable(L("Complete the host configuration to check rsync.")),
+                for: hostID)
+            return
+        }
+        guard host.supportsRsync else {
+            setRsyncStatus(
+                .unavailable(L("Private key authentication is required for rsync acceleration.")),
+                for: hostID)
+            return
+        }
+        guard transfers.isLocalRsyncAvailable else {
+            setRsyncStatus(
+                .unavailable(L("No local rsync executable was found on this Mac.")),
+                for: hostID)
+            return
+        }
+        if !force, let status = rsyncStatuses[hostID], status != .checking {
+            setRsyncStatus(status, for: hostID)
+            return
+        }
+
+        setRsyncStatus(.checking, for: hostID)
+        let session = session(for: host)
+        if force { transfers.invalidateRsyncState(hostID: hostID) }
+        let remoteState = await transfers.remoteRsyncState(session: session)
+        guard let current = settings.hosts.first(where: { $0.id == hostID }),
+              current.connectionEquals(host) else { return }
+        setRsyncStatus(RsyncHostStatus(remoteState: remoteState), for: hostID)
+    }
 
     private func refreshRsyncHint(session: HostSession) {
         rsyncMissingOnActiveHost = false
-        guard session.record.supportsRsync else { return }
-        Task {
-            let state = await transfers.remoteRsyncState(session: session)
-            if browser.session === session, case .missing = state {
-                rsyncMissingOnActiveHost = true
-            }
+        Task { await detectRsync(for: session.record.id) }
+    }
+
+    private func setRsyncStatus(_ status: RsyncHostStatus, for hostID: UUID) {
+        rsyncStatuses[hostID] = status
+        if settings.activeHost?.id == hostID {
+            rsyncMissingOnActiveHost = status.isMissing
         }
     }
 
-    func beginRsyncInstall() {
-        guard let session = activeSession else { return }
-        rsyncInstall = RsyncInstallFlow(session: session)
-        Task { await rsyncInstall?.prepare() }
+    func beginRsyncInstall(for hostID: UUID) {
+        guard let host = settings.hosts.first(where: { $0.id == hostID }),
+              host.isComplete, host.supportsRsync else { return }
+        let flow = RsyncInstallFlow(session: session(for: host))
+        rsyncInstall = flow
+        Task { await flow.prepare() }
     }
 
     func finishRsyncInstall(success: Bool) {
+        let hostID = rsyncInstall?.session.record.id
         rsyncInstall = nil
-        guard success, let session = activeSession else { return }
-        transfers.invalidateRsyncState(hostID: session.record.id)
-        refreshRsyncHint(session: session)
+        guard success, let hostID else { return }
+        transfers.invalidateRsyncState(hostID: hostID)
+        Task { await detectRsync(for: hostID, force: true) }
     }
 }
 
-/// One run of the panel's "install rsync on the remote" sheet: probes the
-/// package manager and sudo situation, shows the exact command, runs it
+/// One run of the settings/panel "install rsync on the remote" flow: probes
+/// the package manager and sudo situation, shows the exact command, runs it
 /// (sudo password over stdin, never a PTY), and reports the outcome.
 @MainActor
 final class RsyncInstallFlow: ObservableObject, Identifiable {
@@ -282,7 +367,12 @@ final class RsyncInstallFlow: ObservableObject, Identifiable {
                 return
             }
             self.plan = plan
-            phase = plan.sudoCommand == nil ? .ready : .needsPassword
+            if plan.sudoCommand == nil {
+                phase = .ready
+                await run()
+            } else {
+                phase = .needsPassword
+            }
         } catch {
             phase = .unavailable("\(error)")
         }
@@ -306,12 +396,20 @@ final class RsyncInstallFlow: ObservableObject, Identifiable {
                     return
                 }
             }
-            let detail = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            phase = .failed(detail.isEmpty ? L("Install failed.") : detail)
+            let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            phase = .failed(installFailureMessage(stderr.isEmpty ? stdout : stderr))
         } catch {
             sudoPassword = ""
-            phase = .failed("\(error)")
+            phase = .failed(installFailureMessage("\(error)"))
         }
+    }
+
+    private func installFailureMessage(_ detail: String) -> String {
+        let fallback = detail.isEmpty ? L("Install failed.") : detail
+        guard RsyncSupport.isPermissionFailure(detail) else { return fallback }
+        let summary = L("Insufficient permission to install rsync.")
+        return detail.isEmpty ? summary : "\(summary)\n\(detail)"
     }
 }
 

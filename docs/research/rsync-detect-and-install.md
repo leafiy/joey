@@ -76,7 +76,7 @@ Where the sudo password comes from (reuse SSH password vs prompt) is deferred to
 - Remote login shell not POSIX and no `/bin/sh` → detection returns "unknown"; default to sftp.
 - `requiretty` sudoers on legacy RHEL breaks `sudo -S` without PTY → fall back to sftp (by design).
 - openrsync behavioral gaps vs GNU rsync (daemon mode, ACL/xattr semantics, occasional assertion failures reported on 15.4) — keep sftp fallback on any non-zero rsync exit ([mjtsai](https://mjtsai.com/blog/2025/06/06/sequoias-new-rsync/)).
-- `--noconfirm`/`-y` installs can pull large dependency sets on minimal images; show the exact command in the UI before running (already the agreed UX).
+- `--noconfirm`/`-y` installs can pull large dependency sets on minimal images. The Host's explicit **Install Automatically…** action is the authorization boundary; the sheet keeps the exact command visible while probing/running. Root/NOPASSWD installs proceed automatically, password sudo pauses for input, and permission failures surface stderr before falling back to sftp.
 
 ## Sources
 

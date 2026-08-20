@@ -15,6 +15,9 @@
 "Configure Hosts…" = "Configure Hosts…";
 "No Host" = "No Host";
 "Refresh" = "Refresh";
+"Show Hidden Files" = "Show Hidden Files";
+"Listing directory…" = "Listing directory…";
+"Copying…" = "Copying…";
 "Host setup incomplete" = "Host setup incomplete";
 "Set a user and password or private key in Settings." = "Set a user and password or private key in Settings.";
 "Configure a host before uploading." = "Configure a host before uploading.";
@@ -39,6 +42,19 @@
 "Done" = "Done";
 "Close" = "Close";
 "Install" = "Install";
+"rsync acceleration" = "rsync acceleration";
+"Checking…" = "Checking…";
+"Enabled" = "Enabled";
+"Not installed" = "Not installed";
+"Install Automatically…" = "Install Automatically…";
+"Unavailable" = "Unavailable";
+"Detection failed" = "Detection failed";
+"Retry" = "Retry";
+"Host not found." = "Host not found.";
+"Complete the host configuration to check rsync." = "Complete the host configuration to check rsync.";
+"Private key authentication is required for rsync acceleration." = "Private key authentication is required for rsync acceleration.";
+"No local rsync executable was found on this Mac." = "No local rsync executable was found on this Mac.";
+"Insufficient permission to install rsync." = "Insufficient permission to install rsync.";
 
 /* Favorite Tray */
 "Favorites" = "Favorites";
@@ -56,6 +72,8 @@
 "Port" = "Port";
 "User" = "User";
 "Default directory" = "Default directory";
+"Favorite" = "Favorite";
+"Favorite drops use this host’s default or last browsed directory." = "Favorite drops use this host’s default or last browsed directory.";
 "Authentication" = "Authentication";
 "Password" = "Password";
 "Private Key" = "Private Key";
@@ -69,11 +87,6 @@
 "Make Active" = "Make Active";
 "Remove" = "Remove";
 
-/* Settings — Favorites */
-"favorites.explainer" = "Favorites are instant drop targets: drag files onto the menu bar icon and the Favorite Tray appears. Without favorites, the drag opens the main panel instead.";
-"Add Favorite" = "Add Favorite";
-"Up to three favorites." = "Up to three favorites.";
-"Remote directory" = "Remote directory";
 
 /* Settings — Privacy */
 "Privacy" = "Privacy";
