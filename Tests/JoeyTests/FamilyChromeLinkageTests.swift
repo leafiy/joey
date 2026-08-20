@@ -14,6 +14,7 @@ final class FamilyChromeLinkageTests: XCTestCase {
         a.username = "deploy"
         var b = a
         b.name = "renamed"
+        b.defaultDirectory = "/srv/default"
         b.lastBrowsedDirectory = "/srv"
         XCTAssertTrue(a.connectionEquals(b))
         b.port = 2222

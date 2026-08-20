@@ -28,6 +28,10 @@ struct PanelRootView: View {
         model.settings.activeHost?.isComplete == true
     }
 
+    private var hasActiveHost: Bool {
+        model.settings.activeHost != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -248,14 +252,22 @@ struct PanelRootView: View {
         if !hostConfigured {
             VStack(spacing: LeafiyDesign.Spacing.m) {
                 EmptyStateView(
-                    systemImage: "server.rack",
-                    title: L("No host configured"),
-                    subtitle: L("Add a Host Record to start browsing.")
+                    systemImage: hasActiveHost ? "lock.slash" : "server.rack",
+                    title: L(hasActiveHost ? "Host setup incomplete" : "No host configured"),
+                    subtitle: L(
+                        hasActiveHost
+                            ? "Set a user and password or private key in Settings."
+                            : "Add a Host Record to start browsing."
+                    )
                 )
                 .fixedSize(horizontal: false, vertical: true)
                 Button(L("Open Settings…")) { LeafiySettingsWindow.open() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .leafiyFileDrop(isTargeted: $listTargeted) { urls in
+                model.panelDrop(urls, into: browser.path)
+            }
+            .leafiyDropHighlight(listTargeted)
         } else if browser.entries.isEmpty {
             EmptyStateView(
                 systemImage: "folder",

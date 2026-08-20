@@ -409,9 +409,11 @@ final class SSHConnection {
                 }
             }
         }
-        let status = ssh_channel_get_exit_status(channel)
+        var status = UInt32.max
+        _ = ssh_channel_get_exit_state(channel, &status, nil, nil)
+        let exitStatus = Int32(bitPattern: status)
         return ExecResult(
-            exitStatus: status,
+            exitStatus: exitStatus,
             stdout: String(decoding: stdout, as: UTF8.self),
             stderr: String(decoding: stderr, as: UTF8.self))
     }

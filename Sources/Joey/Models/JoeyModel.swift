@@ -107,9 +107,7 @@ final class JoeyModel: ObservableObject {
             return
         }
         let session = session(for: host)
-        browser.activate(
-            session: session,
-            startPath: host.lastBrowsedDirectory.isEmpty ? nil : host.lastBrowsedDirectory)
+        browser.activate(session: session, startPath: host.browserStartDirectory)
         refreshRsyncHint(session: session)
     }
 
@@ -133,7 +131,20 @@ final class JoeyModel: ObservableObject {
     }
 
     func panelDrop(_ urls: [URL], into directory: String) {
-        guard let host = settings.activeHost else { return }
+        guard let host = settings.activeHost else {
+            browser.operationError = TransferError(
+                fileName: urls.first?.lastPathComponent ?? L("Drop files here to upload"),
+                message: L("Configure a host before uploading.")
+            )
+            return
+        }
+        guard host.isComplete else {
+            browser.operationError = TransferError(
+                fileName: urls.first?.lastPathComponent ?? L("Drop files here to upload"),
+                message: L("Complete host authentication before uploading.")
+            )
+            return
+        }
         upload(urls, to: directory, host: host)
     }
 

@@ -111,7 +111,7 @@ cmake -S "$LIBSSH_SRC" -B "$LIBSSH_BUILD" \
 cmake --build "$LIBSSH_BUILD" -j "$JOBS"
 
 DYLIB="$WORK/libssh.dylib"
-cp -L "$LIBSSH_BUILD/src/libssh.dylib" "$DYLIB"
+cp -L "$LIBSSH_BUILD/lib/libssh.dylib" "$DYLIB"
 
 say "sanity checks"
 lipo -info "$DYLIB"

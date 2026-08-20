@@ -21,9 +21,45 @@ struct HostRecord: Identifiable, Codable, Equatable {
     var password: String = ""
     var privateKeyPath: String = ""
     var keyPassphrase: String = ""
+    /// Optional fixed landing directory used whenever this host is activated.
+    /// Empty preserves the Last Browsed Directory behavior.
+    var defaultDirectory: String = ""
     /// CONTEXT.md: Last Browsed Directory — the panel-drop landing point,
     /// updated on every browse.
     var lastBrowsedDirectory: String = ""
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, host, port, username, authMethod, password
+        case privateKeyPath, keyPassphrase, defaultDirectory, lastBrowsedDirectory
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? container.decode(String.self, forKey: .name)) ?? ""
+        host = (try? container.decode(String.self, forKey: .host)) ?? ""
+        port = (try? container.decode(Int.self, forKey: .port)) ?? 22
+        username = (try? container.decode(String.self, forKey: .username)) ?? ""
+        authMethod =
+            (try? container.decode(AuthMethod.self, forKey: .authMethod)) ?? .password
+        password = (try? container.decode(String.self, forKey: .password)) ?? ""
+        privateKeyPath =
+            (try? container.decode(String.self, forKey: .privateKeyPath)) ?? ""
+        keyPassphrase =
+            (try? container.decode(String.self, forKey: .keyPassphrase)) ?? ""
+        defaultDirectory =
+            (try? container.decode(String.self, forKey: .defaultDirectory)) ?? ""
+        lastBrowsedDirectory =
+            (try? container.decode(String.self, forKey: .lastBrowsedDirectory)) ?? ""
+    }
+
+    var browserStartDirectory: String? {
+        if !defaultDirectory.isEmpty { return defaultDirectory }
+        if !lastBrowsedDirectory.isEmpty { return lastBrowsedDirectory }
+        return nil
+    }
 
     var displayName: String {
         if !name.isEmpty { return name }

@@ -1,0 +1,6 @@
+module CLibssh {
+    header "libssh/libssh.h"
+    header "libssh/sftp.h"
+    link "ssh"
+    export *
+}

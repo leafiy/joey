@@ -42,10 +42,10 @@
      -DOPENSSL_ROOT_DIR=$PWD/../openssl/universal
    cmake --build build -j
    ```
-3. **校验**:`lipo -info build/src/libssh.dylib`(两架构);`otool -L`(只应引用系统库,不应出现 libcrypto——已静态吸收)。
-4. **install name**:`install_name_tool -id @rpath/libssh.dylib build/src/libssh.dylib`。
+3. **校验**:`lipo -info build/lib/libssh.dylib`(两架构);`otool -L`(只应引用系统库,不应出现 libcrypto——已静态吸收)。
+4. **install name**:`install_name_tool -id @rpath/libssh.dylib build/lib/libssh.dylib`。
 5. **xcframework**:staging 目录放 `libssh/*.h` + 手写 `module.modulemap`(`module CLibssh { header "libssh/libssh.h" header "libssh/sftp.h" link "ssh" export * }`);
-   `xcodebuild -create-xcframework -library build/src/libssh.dylib -headers staged-include -output Vendor/libssh.xcframework`。
+   `xcodebuild -create-xcframework -library build/lib/libssh.dylib -headers staged-include -output Vendor/libssh.xcframework`。
 6. **Package.swift**:`.binaryTarget(name: "CLibssh", path: "Vendor/libssh.xcframework")` + wrapper target 依赖之。
 7. **App 装配**:dylib 拷入 `Joey.app/Contents/Frameworks/`(SwiftPM 可执行产物不会自动嵌入,打包脚本负责),主程序需有 `LC_RPATH @executable_path/../Frameworks`。
 8. **签名/公证**:由内向外——先 `codesign --force --options runtime --timestamp -s "Developer ID Application: …"` 签 dylib,再签 .app(entitlements 含 `com.apple.security.cs.disable-library-validation`),`notarytool submit` + `stapler staple`。来源:https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle 、https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle 、https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution

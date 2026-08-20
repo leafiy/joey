@@ -5,7 +5,7 @@
 ## Language
 
 **Host Record**:
-设置里的一条远程主机配置(名称、host、port、用户名、认证方式),SFTP 引擎与 rsync 命令行共用同一份。
+设置里的一条远程主机配置(名称、host、port、用户名、默认目录、认证方式),SFTP 引擎与 rsync 命令行共用同一份。
 _Avoid_: server、connection、profile
 
 **Active Host**:
@@ -16,9 +16,12 @@ _Avoid_: current server、session
 面板里的远程目录视图:单列列表 + 面包屑,懒加载。
 _Avoid_: explorer、finder
 
+**Default Directory**:
+Host Record 上可选的固定远程起始目录;配置后,每次激活该主机时 Browser 从这里打开。留空则恢复 Last Browsed Directory,新主机首次打开时解析远程 home。
+
 **Last Browsed Directory**:
-Active Host 上最近一次浏览/落盘的远程目录;拖到 menubar 图标时的上传落点。
-_Avoid_: default directory、home
+Active Host 上最近一次浏览/落盘的远程目录;未配置 Default Directory 时用于恢复 Browser,也是拖到 menubar 图标时的上传落点。
+_Avoid_: home
 
 **Panel Drop**:
 把本地文件拖进 Browser 完成上传——拖到空白处传当前目录,拖到文件夹行传进该文件夹。

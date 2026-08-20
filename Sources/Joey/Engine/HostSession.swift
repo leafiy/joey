@@ -4,7 +4,7 @@ import Foundation
 /// so every call is funnelled onto a per-host serial queue; the connection is
 /// (re)established lazily and dropped on any session-level failure so the next
 /// call reconnects.
-final class HostSession {
+final class HostSession: @unchecked Sendable {
     let record: HostRecord
 
     private let queue: DispatchQueue

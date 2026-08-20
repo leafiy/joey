@@ -1,3 +1,4 @@
+import AppKit
 import LeafiyUI
 import LeafiyUICore
 import SwiftUI
@@ -123,6 +124,8 @@ private struct HostSection: View {
             TextField(L("Port"), value: binding(\.port), format: .number.grouping(.never))
             TextField(L("User"), text: binding(\.username))
                 .autocorrectionDisabled()
+            TextField(L("Default directory"), text: binding(\.defaultDirectory))
+                .autocorrectionDisabled()
             Picker(L("Authentication"), selection: binding(\.authMethod)) {
                 Text(L("Password")).tag(HostRecord.AuthMethod.password)
                 Text(L("Private Key")).tag(HostRecord.AuthMethod.privateKey)
@@ -130,8 +133,28 @@ private struct HostSection: View {
             if record.authMethod == .password {
                 SecureField(L("Password"), text: binding(\.password))
             } else {
-                TextField(L("Private key path"), text: binding(\.privateKeyPath))
-                    .autocorrectionDisabled()
+                HStack {
+                    TextField(L("Private key path"), text: binding(\.privateKeyPath))
+                        .autocorrectionDisabled()
+                    Menu {
+                        ForEach(commonPrivateKeyPaths, id: \.self) { path in
+                            Button(path) {
+                                binding(\.privateKeyPath).wrappedValue = path
+                            }
+                        }
+                        if !commonPrivateKeyPaths.isEmpty {
+                            Divider()
+                        }
+                        Button(L("Choose Private Key…")) {
+                            choosePrivateKey()
+                        }
+                    } label: {
+                        Image(systemName: "folder")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help(L("Choose Private Key…"))
+                }
                 SecureField(L("Key passphrase (optional)"), text: binding(\.keyPassphrase))
             }
             HStack {
@@ -152,6 +175,68 @@ private struct HostSection: View {
                 .font(.caption)
             }
         }
+    }
+
+    private static let commonPrivateKeyNames = [
+        "id_ed25519",
+        "id_ecdsa",
+        "id_ecdsa_sk",
+        "id_ed25519_sk",
+        "id_rsa",
+    ]
+
+    private var commonPrivateKeyPaths: [String] {
+        Self.commonPrivateKeyNames.compactMap { name in
+            let path = "~/.ssh/\(name)"
+            let expandedPath = (path as NSString).expandingTildeInPath
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDirectory)
+                && !isDirectory.boolValue ? path : nil
+        }
+    }
+
+    private func choosePrivateKey() {
+        let panel = NSOpenPanel()
+        panel.title = L("Choose Private Key")
+        panel.message = L("Choose a private key file.")
+        panel.prompt = L("Choose")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.directoryURL = privateKeyPickerDirectory
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        binding(\.privateKeyPath).wrappedValue = abbreviatedHomePath(url)
+    }
+
+    private var privateKeyPickerDirectory: URL {
+        let fileManager = FileManager.default
+        if !record.privateKeyPath.isEmpty {
+            let selectedPath = (record.privateKeyPath as NSString).expandingTildeInPath
+            let directory = URL(fileURLWithPath: selectedPath).deletingLastPathComponent()
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                return directory
+            }
+        }
+
+        let sshDirectory = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent(".ssh", isDirectory: true)
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: sshDirectory.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return sshDirectory
+        }
+        return fileManager.homeDirectoryForCurrentUser
+    }
+
+    private func abbreviatedHomePath(_ url: URL) -> String {
+        let path = url.standardizedFileURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        guard path.hasPrefix(home + "/") else { return path }
+        return "~" + path.dropFirst(home.count)
     }
 
     private func binding<Value>(
