@@ -1,5 +1,62 @@
 import Foundation
 
+enum DownloadResumer {
+    static func run(
+        localPath: String,
+        maxAttempts: Int = 4,
+        retryDelayNanoseconds: UInt64 = 250_000_000,
+        attempt: () async throws -> Void
+    ) async throws {
+        precondition(maxAttempts > 0)
+
+        for attemptIndex in 0..<maxAttempts {
+            let sizeBeforeAttempt = localFileSize(localPath) ?? 0
+            do {
+                try await attempt()
+                return
+            } catch SSHEngineError.cancelled {
+                throw SSHEngineError.cancelled
+            } catch {
+                let sizeAfterAttempt = localFileSize(localPath) ?? 0
+                guard attemptIndex + 1 < maxAttempts,
+                      shouldRetry(
+                        error,
+                        sizeBeforeAttempt: sizeBeforeAttempt,
+                        sizeAfterAttempt: sizeAfterAttempt
+                      ) else {
+                    throw error
+                }
+                guard !Task.isCancelled else { throw SSHEngineError.cancelled }
+                if retryDelayNanoseconds > 0 {
+                    do {
+                        try await Task.sleep(nanoseconds: retryDelayNanoseconds)
+                    } catch {
+                        throw SSHEngineError.cancelled
+                    }
+                }
+            }
+        }
+    }
+
+    private static func shouldRetry(
+        _ error: Error,
+        sizeBeforeAttempt: UInt64,
+        sizeAfterAttempt: UInt64
+    ) -> Bool {
+        guard let engineError = error as? SSHEngineError else { return false }
+        switch engineError {
+        case .session:
+            return true
+        case .sftp(let message):
+            return sizeAfterAttempt > sizeBeforeAttempt
+                || message.hasPrefix("read from ")
+                || message.hasPrefix("close ")
+        case .auth, .hostKey, .io, .exec, .cancelled:
+            return false
+        }
+    }
+}
+
 /// Async facade over one `SSHConnection`. libssh sessions are not thread-safe,
 /// so every call is funnelled onto a per-host serial queue; the connection is
 /// (re)established lazily and dropped on any session-level failure so the next
@@ -102,8 +159,14 @@ final class HostSession: @unchecked Sendable {
         remotePath: String, localPath: String,
         progress: @escaping (UInt64, UInt64) -> Bool
     ) async throws {
-        try await withConnection {
-            try $0.download(remotePath: remotePath, localPath: localPath, progress: progress)
+        try await DownloadResumer.run(localPath: localPath) { [self] in
+            try await withConnection {
+                try $0.download(
+                    remotePath: remotePath,
+                    localPath: localPath,
+                    progress: progress
+                )
+            }
         }
     }
 

@@ -29,9 +29,11 @@ final class RsyncSupportTests: XCTestCase {
         XCTAssertEqual(
             RsyncHostStatus(remoteState: .missing),
             .missing)
-        XCTAssertEqual(
-            RsyncHostStatus(remoteState: .unknown(detail: "probe failed")),
-            .failed("probe failed"))
+        guard case .failed(let reason) = RsyncHostStatus(remoteState: .unknown(detail: "probe failed")) else {
+            return XCTFail("unknown rsync state should be user-visible as a failure")
+        }
+        XCTAssertFalse(reason.isEmpty)
+        XCTAssertFalse(reason.contains("probe failed"))
     }
 
     func testPermissionFailureDetection() {
@@ -99,11 +101,43 @@ final class RsyncSupportTests: XCTestCase {
         XCTAssertTrue(args.contains(where: { $0.hasPrefix("ssh -p 2222 -i /k") }))
     }
 
-    func testProgressPercentParsing() {
-        XCTAssertEqual(
-            RsyncSupport.parseProgressPercent(
-                "1,036,923,510  99%   39.90MB/s    0:00:24 (xfr#1, to-chk=0/2)"),
-            0.99)
+    func testProgressParsing() {
+        let progress =
+            "1,036,923,510  99%   39.90MB/s    0:00:24 (xfr#1, to-chk=0/2)"
+        XCTAssertEqual(RsyncSupport.parseProgressPercent(progress), 0.99)
+        XCTAssertEqual(RsyncSupport.parseProgressBytes(progress), 1_036_923_510)
         XCTAssertNil(RsyncSupport.parseProgressPercent("building file list ..."))
+        XCTAssertNil(RsyncSupport.parseProgressBytes("building file list ..."))
+    }
+
+    func testTransferSpeedSamplerAggregatesStreamsAndHandlesResets() throws {
+        let sampler = TransferSpeedSampler(sampleInterval: 0.5)
+        let first = UUID()
+        let second = UUID()
+        sampler.reset(at: 10)
+        sampler.begin(first, initialBytes: 0)
+        sampler.begin(second, initialBytes: 0)
+
+        XCTAssertNil(sampler.record(500_000, for: first, at: 10.25))
+        let aggregateRate = try XCTUnwrap(
+            sampler.record(500_000, for: second, at: 10.5)
+        )
+        XCTAssertEqual(aggregateRate, 2_000_000, accuracy: 0.001)
+
+        sampler.reset(at: 20)
+        sampler.begin(first)
+        XCTAssertNil(sampler.record(4_000_000, for: first, at: 20.1))
+        let resumedRate = try XCTUnwrap(
+            sampler.record(4_500_000, for: first, at: 20.5)
+        )
+        XCTAssertEqual(resumedRate, 1_000_000, accuracy: 0.001)
+
+        sampler.reset(at: 30)
+        sampler.begin(first, initialBytes: 0)
+        XCTAssertNil(sampler.record(1_000, for: first, at: 30.2))
+        let resetRate = try XCTUnwrap(
+            sampler.record(200, for: first, at: 30.5)
+        )
+        XCTAssertEqual(resetRate, 2_400, accuracy: 0.001)
     }
 }

@@ -18,6 +18,10 @@
 "Show Hidden Files" = "显示隐藏文件";
 "Listing directory…" = "正在列出目录…";
 "Copying…" = "正在复制…";
+"Cancel ongoing transfers?" = "取消正在进行的传输?";
+"All current transfers will stop. Incomplete files may remain at their destinations." = "所有正在进行的传输都将停止,目标位置可能保留未完成的文件。";
+"Keep Copying" = "继续复制";
+"Cancel Transfers" = "取消传输";
 "Host setup incomplete" = "主机配置未完成";
 "Set a user and password or private key in Settings." = "请在设置中填写用户名和密码或私钥路径。";
 "Configure a host before uploading." = "请先配置主机再上传文件。";
@@ -27,6 +31,37 @@
 "Open Settings…" = "打开设置…";
 "Empty folder" = "空文件夹";
 "Drop files here to upload" = "拖入文件即可上传";
+"Download" = "下载";
+
+/* 面向用户的错误提示 */
+"You don’t have permission to open this folder." = "你没有权限打开此文件夹。";
+"You don’t have permission to create items in this folder." = "你没有权限在此文件夹中新建项目。";
+"You don’t have permission to rename this item." = "你没有权限重命名此项目。";
+"You don’t have permission to delete this item." = "你没有权限删除此项目。";
+"You don’t have permission to upload to this folder." = "你没有权限上传到此文件夹。";
+"You don’t have permission to download this item." = "你没有权限下载此项目。";
+"This folder can’t be found. It may have been moved or deleted." = "找不到此文件夹。它可能已被移动或删除。";
+"This item can’t be found. It may have been moved or deleted." = "找不到此项目。它可能已被移动或删除。";
+"An item with this name already exists." = "同名项目已存在。";
+"There isn’t enough storage space to complete this operation." = "可用存储空间不足，无法完成此操作。";
+"The server doesn’t support this operation." = "服务器不支持此操作。";
+"The connection to the server was lost. Try again." = "与服务器的连接已断开，请重试。";
+"The connection timed out. Check the host address and network, then try again." = "连接超时。请检查主机地址和网络后重试。";
+"Couldn’t connect to the server. Check the host address and network, then try again." = "无法连接到服务器。请检查主机地址和网络后重试。";
+"Couldn’t sign in. Check the username and authentication details, then try again." = "无法登录。请检查用户名和认证信息后重试。";
+"The server’s identity changed. Verify the server and update its saved key before reconnecting." = "服务器身份已变更。请确认服务器可信，并更新已保存的密钥后再连接。";
+"Couldn’t verify the server’s identity. Check the saved server key and try again." = "无法验证服务器身份。请检查已保存的服务器密钥后重试。";
+"Couldn’t open this folder. Check the path and your access permission." = "无法打开此文件夹。请检查路径，并确认你有访问权限。";
+"Couldn’t create this folder. Check the name and your write permission." = "无法新建文件夹。请检查名称，并确认你有写入权限。";
+"Couldn’t rename this item. Check your write permission." = "无法重命名此项目。请确认你有写入权限。";
+"Couldn’t delete this item. It may be in use, protected, or a non-empty folder." = "无法删除此项目。它可能正在使用、受保护，或是非空文件夹。";
+"Couldn’t upload this item. Check the destination folder and your write permission." = "无法上传此项目。请检查目标文件夹，并确认你有写入权限。";
+"Couldn’t download this item. Check your access and available space on this Mac." = "无法下载此项目。请检查访问权限和本机可用空间。";
+"Couldn’t complete this operation. Try again." = "无法完成此操作，请重试。";
+"Couldn’t check rsync on this host. Check the connection and try again." = "无法检查此主机上的 rsync。请检查连接后重试。";
+"Couldn’t install rsync. Check the connection and try again." = "无法安装 rsync。请检查连接后重试。";
+"You don’t have permission to install rsync." = "你没有权限安装 rsync。";
+"The operation was cancelled." = "操作已取消。";
 
 /* rsync */
 "rsync not found on this host — transfers use sftp." = "该主机未安装 rsync——传输走 sftp。";
@@ -60,6 +95,14 @@
 "Favorites" = "收藏";
 "Drop to upload" = "拖放到收藏即上传";
 
+/* 设置——下载 */
+"Downloads" = "下载";
+"Download folder" = "下载文件夹";
+"Choose…" = "选择…";
+"Choose Download Folder" = "选择下载文件夹";
+"Choose where downloaded files are saved." = "选择下载文件的保存位置。";
+"Downloads from the Browser are saved here." = "从浏览器下载的文件将保存到这里。";
+
 /* Settings — Hosts */
 "Hosts" = "主机";
 "Add Host" = "添加主机";
@@ -91,5 +134,5 @@
 /* Settings — Privacy */
 "Privacy" = "隐私";
 "privacy.storage" = "主机密码与私钥口令以明文保存在本机 ~/Library/Application Support/Joey/settings.json。能访问你用户账户的人都可以读取它们。";
-"privacy.transfer" = "Joey 只与你配置的 SSH 主机通信。从浏览器拖出的文件会先落到本机临时目录,再由 Finder 复制到目的地。";
+"privacy.transfer" = "Joey 只与你配置的 SSH 主机通信。拖出的项目仅在 Finder 接受投放后下载;“下载”操作会直接保存到设置中配置的文件夹。中断下载会留下隐藏的 .joeydownload 暂存项目,自动续传完成后移除。";
 "privacy.hostkeys" = "服务器主机密钥按 ~/.ssh/known_hosts 校验。未知主机首次连接即信任并记录;主机密钥变更会阻断连接。";

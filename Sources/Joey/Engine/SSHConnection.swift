@@ -29,6 +29,19 @@ struct RemoteEntry: Identifiable, Hashable {
     let name: String
     let isDirectory: Bool
     let size: UInt64
+    let modificationTime: UInt64
+
+    init(
+        name: String,
+        isDirectory: Bool,
+        size: UInt64,
+        modificationTime: UInt64 = 0
+    ) {
+        self.name = name
+        self.isDirectory = isDirectory
+        self.size = size
+        self.modificationTime = modificationTime
+    }
 
     var id: String { name }
 }
@@ -240,7 +253,11 @@ final class SSHConnection {
             entries.append(RemoteEntry(
                 name: name,
                 isDirectory: attrs.pointee.type == UInt8(SSH_FILEXFER_TYPE_DIRECTORY),
-                size: attrs.pointee.size))
+                size: attrs.pointee.size,
+                modificationTime: attrs.pointee.mtime64 > 0
+                    ? attrs.pointee.mtime64
+                    : UInt64(attrs.pointee.mtime)
+            ))
         }
         guard sftp_dir_eof(dir) == 1 else { throw sftpError("readdir \(path) stopped before EOF") }
         return entries
@@ -332,6 +349,8 @@ final class SSHConnection {
         let sf = try sftpSession()
         let chunk = maxReadChunk
         let total = try stat(remotePath)
+        let existingSize = localFileSize(localPath) ?? 0
+        let resumeOffset = existingSize <= total ? existingSize : 0
 
         guard let remote = sftp_open(sf, remotePath, O_RDONLY, 0) else {
             throw sftpError("open \(remotePath) for reading")
@@ -339,14 +358,26 @@ final class SSHConnection {
         var remoteClosed = false
         defer { if !remoteClosed { sftp_close(remote) } }
 
-        guard FileManager.default.createFile(atPath: localPath, contents: nil),
-              let local = FileHandle(forWritingAtPath: localPath) else {
-            throw SSHEngineError.io("cannot create local file \(localPath)")
+        if resumeOffset > 0 {
+            guard sftp_seek64(remote, resumeOffset) == SSH_OK else {
+                throw sftpError("seek \(remotePath) to byte \(resumeOffset)")
+            }
+        }
+
+        if !FileManager.default.fileExists(atPath: localPath) {
+            _ = FileManager.default.createFile(atPath: localPath, contents: nil)
+        }
+        guard let local = FileHandle(forWritingAtPath: localPath) else {
+            throw SSHEngineError.io("cannot open local file \(localPath)")
         }
         defer { try? local.close() }
+        if resumeOffset == 0 {
+            try local.truncate(atOffset: 0)
+        }
+        try local.seek(toOffset: resumeOffset)
 
         var buffer = [UInt8](repeating: 0, count: chunk)
-        var received: UInt64 = 0
+        var received = resumeOffset
         while true {
             guard progress(received, total) else { throw SSHEngineError.cancelled }
             let n = buffer.withUnsafeMutableBytes { sftp_read(remote, $0.baseAddress!, chunk) }

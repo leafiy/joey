@@ -9,6 +9,7 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     var launchAtLogin: Bool = false
     var applicationIconMode: LeafiyApplicationIconMode = .menuBar
     var showHiddenFiles = false
+    var downloadDirectory = "~/Downloads"
 
     var hosts: [HostRecord] = []
     var activeHostID: UUID?
@@ -40,6 +41,7 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     // old settings files keep loading.
     enum CodingKeys: String, CodingKey {
         case appLanguage, launchAtLogin, applicationIconMode, showHiddenFiles
+        case downloadDirectory
         case hosts, activeHostID, favorites
     }
 
@@ -58,6 +60,9 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
         showHiddenFiles =
             (try? container.decode(Bool.self, forKey: .showHiddenFiles))
             ?? defaults.showHiddenFiles
+        downloadDirectory =
+            (try? container.decode(String.self, forKey: .downloadDirectory))
+            ?? defaults.downloadDirectory
         hosts = (try? container.decode([HostRecord].self, forKey: .hosts)) ?? defaults.hosts
         activeHostID = try? container.decode(UUID.self, forKey: .activeHostID)
 
@@ -81,6 +86,7 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
         try container.encode(launchAtLogin, forKey: .launchAtLogin)
         try container.encode(applicationIconMode, forKey: .applicationIconMode)
         try container.encode(showHiddenFiles, forKey: .showHiddenFiles)
+        try container.encode(downloadDirectory, forKey: .downloadDirectory)
         try container.encode(hosts, forKey: .hosts)
         try container.encodeIfPresent(activeHostID, forKey: .activeHostID)
     }
@@ -88,6 +94,15 @@ struct AppSettings: Codable, Equatable, LeafiyAppSettings {
     var selectedAppLanguage: AppLanguage {
         get { AppLanguage(rawValue: appLanguage) ?? .system }
         set { appLanguage = newValue.rawValue }
+    }
+
+    var downloadDirectoryURL: URL {
+        let configured = downloadDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = configured.isEmpty ? AppSettings.defaults.downloadDirectory : configured
+        return URL(
+            fileURLWithPath: (path as NSString).expandingTildeInPath,
+            isDirectory: true
+        ).standardizedFileURL
     }
 
     var activeHost: HostRecord? {

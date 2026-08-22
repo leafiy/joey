@@ -21,8 +21,8 @@ enum RsyncHostStatus: Equatable {
             self = .enabled(banner: banner)
         case .missing:
             self = .missing
-        case .unknown(let detail):
-            self = .failed(detail)
+        case .unknown:
+            self = .failed(L("Couldn’t check rsync on this host. Check the connection and try again."))
         }
     }
 
@@ -220,19 +220,46 @@ final class JoeyModel: ObservableObject {
         return NSApp.windows.contains { $0.isVisible && $0.className.contains("MenuBarExtra") }
     }
 
-    // MARK: - Drag-out
+    // MARK: - Downloads and Drag-out
 
-    func dragOutPromise(for entry: RemoteEntry) -> LeafiyFilePromise? {
-        guard !entry.isDirectory, let session = browser.session else { return nil }
-        let remotePath = joinRemote(browser.path, entry.name)
-        let transfers = transfers
-        let contentType = UTType(filenameExtension: (entry.name as NSString).pathExtension) ?? .data
-        return LeafiyFilePromise(filename: entry.name, contentType: contentType) {
-            destination, progress in
-            try await transfers.download(
-                remotePath: remotePath, fileName: entry.name, to: destination,
-                session: session, progress: progress)
+    func download(_ entries: [RemoteEntry]) {
+        guard let session = browser.session else { return }
+        let remoteDirectory = browser.path
+        let localDirectory = settings.downloadDirectoryURL
+        Task {
+            await transfers.download(
+                entries: entries,
+                from: remoteDirectory,
+                to: localDirectory,
+                session: session
+            )
         }
+    }
+
+    func dragOutPromises(for entries: [RemoteEntry]) -> [LeafiyFilePromise] {
+        guard let session = browser.session else { return [] }
+        let remoteDirectory = browser.path
+        let transfers = transfers
+        return entries.map { entry in
+            let remotePath = joinRemote(remoteDirectory, entry.name)
+            return LeafiyFilePromise(
+                filename: entry.name,
+                contentType: Self.dragContentType(for: entry)
+            ) { destination, progress in
+                try await transfers.download(
+                    entry: entry,
+                    remotePath: remotePath,
+                    to: destination,
+                    session: session,
+                    progress: progress
+                )
+            }
+        }
+    }
+
+    static func dragContentType(for entry: RemoteEntry) -> UTType {
+        if entry.isDirectory { return .folder }
+        return UTType(filenameExtension: (entry.name as NSString).pathExtension) ?? .data
     }
 
     // MARK: - rsync detect & install
@@ -374,7 +401,7 @@ final class RsyncInstallFlow: ObservableObject, Identifiable {
                 phase = .needsPassword
             }
         } catch {
-            phase = .unavailable("\(error)")
+            phase = .unavailable(UserFacingError.message(for: error, during: .rsyncCheck))
         }
     }
 
@@ -401,15 +428,12 @@ final class RsyncInstallFlow: ObservableObject, Identifiable {
             phase = .failed(installFailureMessage(stderr.isEmpty ? stdout : stderr))
         } catch {
             sudoPassword = ""
-            phase = .failed(installFailureMessage("\(error)"))
+            phase = .failed(UserFacingError.message(for: error, during: .rsyncInstall))
         }
     }
 
     private func installFailureMessage(_ detail: String) -> String {
-        let fallback = detail.isEmpty ? L("Install failed.") : detail
-        guard RsyncSupport.isPermissionFailure(detail) else { return fallback }
-        let summary = L("Insufficient permission to install rsync.")
-        return detail.isEmpty ? summary : "\(summary)\n\(detail)"
+        UserFacingError.message(forDiagnostic: detail, during: .rsyncInstall)
     }
 }
 

@@ -18,6 +18,10 @@
 "Show Hidden Files" = "Show Hidden Files";
 "Listing directory…" = "Listing directory…";
 "Copying…" = "Copying…";
+"Cancel ongoing transfers?" = "Cancel ongoing transfers?";
+"All current transfers will stop. Incomplete files may remain at their destinations." = "All current transfers will stop. Incomplete files may remain at their destinations.";
+"Keep Copying" = "Keep Copying";
+"Cancel Transfers" = "Cancel Transfers";
 "Host setup incomplete" = "Host setup incomplete";
 "Set a user and password or private key in Settings." = "Set a user and password or private key in Settings.";
 "Configure a host before uploading." = "Configure a host before uploading.";
@@ -27,6 +31,37 @@
 "Open Settings…" = "Open Settings…";
 "Empty folder" = "Empty folder";
 "Drop files here to upload" = "Drop files here to upload";
+"Download" = "Download";
+
+/* User-facing errors */
+"You don’t have permission to open this folder." = "You don’t have permission to open this folder.";
+"You don’t have permission to create items in this folder." = "You don’t have permission to create items in this folder.";
+"You don’t have permission to rename this item." = "You don’t have permission to rename this item.";
+"You don’t have permission to delete this item." = "You don’t have permission to delete this item.";
+"You don’t have permission to upload to this folder." = "You don’t have permission to upload to this folder.";
+"You don’t have permission to download this item." = "You don’t have permission to download this item.";
+"This folder can’t be found. It may have been moved or deleted." = "This folder can’t be found. It may have been moved or deleted.";
+"This item can’t be found. It may have been moved or deleted." = "This item can’t be found. It may have been moved or deleted.";
+"An item with this name already exists." = "An item with this name already exists.";
+"There isn’t enough storage space to complete this operation." = "There isn’t enough storage space to complete this operation.";
+"The server doesn’t support this operation." = "The server doesn’t support this operation.";
+"The connection to the server was lost. Try again." = "The connection to the server was lost. Try again.";
+"The connection timed out. Check the host address and network, then try again." = "The connection timed out. Check the host address and network, then try again.";
+"Couldn’t connect to the server. Check the host address and network, then try again." = "Couldn’t connect to the server. Check the host address and network, then try again.";
+"Couldn’t sign in. Check the username and authentication details, then try again." = "Couldn’t sign in. Check the username and authentication details, then try again.";
+"The server’s identity changed. Verify the server and update its saved key before reconnecting." = "The server’s identity changed. Verify the server and update its saved key before reconnecting.";
+"Couldn’t verify the server’s identity. Check the saved server key and try again." = "Couldn’t verify the server’s identity. Check the saved server key and try again.";
+"Couldn’t open this folder. Check the path and your access permission." = "Couldn’t open this folder. Check the path and your access permission.";
+"Couldn’t create this folder. Check the name and your write permission." = "Couldn’t create this folder. Check the name and your write permission.";
+"Couldn’t rename this item. Check your write permission." = "Couldn’t rename this item. Check your write permission.";
+"Couldn’t delete this item. It may be in use, protected, or a non-empty folder." = "Couldn’t delete this item. It may be in use, protected, or a non-empty folder.";
+"Couldn’t upload this item. Check the destination folder and your write permission." = "Couldn’t upload this item. Check the destination folder and your write permission.";
+"Couldn’t download this item. Check your access and available space on this Mac." = "Couldn’t download this item. Check your access and available space on this Mac.";
+"Couldn’t complete this operation. Try again." = "Couldn’t complete this operation. Try again.";
+"Couldn’t check rsync on this host. Check the connection and try again." = "Couldn’t check rsync on this host. Check the connection and try again.";
+"Couldn’t install rsync. Check the connection and try again." = "Couldn’t install rsync. Check the connection and try again.";
+"You don’t have permission to install rsync." = "You don’t have permission to install rsync.";
+"The operation was cancelled." = "The operation was cancelled.";
 
 /* rsync */
 "rsync not found on this host — transfers use sftp." = "rsync not found on this host — transfers use sftp.";
@@ -60,6 +95,14 @@
 "Favorites" = "Favorites";
 "Drop to upload" = "Drop to upload";
 
+/* Settings — Downloads */
+"Downloads" = "Downloads";
+"Download folder" = "Download folder";
+"Choose…" = "Choose…";
+"Choose Download Folder" = "Choose Download Folder";
+"Choose where downloaded files are saved." = "Choose where downloaded files are saved.";
+"Downloads from the Browser are saved here." = "Downloads from the Browser are saved here.";
+
 /* Settings — Hosts */
 "Hosts" = "Hosts";
 "Add Host" = "Add Host";
@@ -91,5 +134,5 @@
 /* Settings — Privacy */
 "Privacy" = "Privacy";
 "privacy.storage" = "Host passwords and key passphrases are stored in plain text in ~/Library/Application Support/Joey/settings.json on this Mac. Anyone with access to your user account can read them.";
-"privacy.transfer" = "Joey talks only to the SSH hosts you configure. Files dragged out of the Browser are staged in a temporary folder on this Mac before Finder copies them to the destination.";
+"privacy.transfer" = "Joey talks only to the SSH hosts you configure. Dragged items download only after Finder accepts the drop; Download saves directly to the folder configured in Settings. Interrupted downloads leave a hidden .joeydownload staging item there until automatic resume completes.";
 "privacy.hostkeys" = "Server host keys are checked against ~/.ssh/known_hosts. Unknown hosts are trusted on first use and recorded; a changed host key blocks the connection.";

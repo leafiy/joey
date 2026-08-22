@@ -13,7 +13,7 @@ _Avoid_: server、connection、profile
 _Avoid_: current server、session
 
 **Browser**:
-面板里的远程目录视图:单列列表 + 面包屑,懒加载;Gear Menu 可切换隐藏文件,目录读取与文件传输共用一套等待指示。
+面板里的远程目录视图:单列列表 + 面包屑,懒加载,支持 Command/Shift 多选;Gear Menu 可切换隐藏文件,目录读取与文件传输共用一套等待指示。
 _Avoid_: explorer、finder
 
 **Default Directory**:
@@ -39,11 +39,15 @@ _Avoid_: bookmark、pinned folder
 _Avoid_: quick drop menu
 
 **Drag-out**:
-从 Browser 把远程文件拖到本地(Finder/桌面);基于 file promise,落盘时才真正下载。
+从 Browser 把一个或多个选中的远程文件或文件夹拖到本地(Finder/桌面);基于 file promise,落盘时才真正递归下载。
 _Avoid_: export、save as
 
+**Download Directory**:
+Browser 右键 Download 的本地落点;默认使用 macOS Downloads,可在设置中选择其他文件夹。文件和文件夹都可下载,已有同名项目时保留原项目并生成带序号的新名称。
+_Avoid_: export folder
+
 **Transfer**:
-一次上传或下载;能走 rsync 就走 rsync,否则 sftp。用户不感知协议切换。
+一次上传或下载;能走 rsync 就走 rsync,否则 sftp。下载写入隐藏的 `.joeydownload` 暂存项目,连接中断后自动重连并从已有字节继续,完成后再原子显示最终名称;用户不感知协议切换和续传。
 _Avoid_: sync、copy job
 
 **rsync Acceleration**:

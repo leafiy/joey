@@ -1,3 +1,4 @@
+import AppKit
 import LeafiyUI
 import LeafiyUICore
 import SwiftUI
@@ -17,6 +18,9 @@ struct PanelRootView: View {
     @State private var renameTarget: RemoteEntry?
     @State private var renameName = ""
     @State private var deleteTarget: RemoteEntry?
+    @State private var cancelTransferPrompt = false
+    @State private var selection: Set<RemoteEntry.ID> = []
+    @State private var selectionAnchor: RemoteEntry.ID?
 
     init(model: JoeyModel) {
         self.model = model
@@ -33,62 +37,58 @@ struct PanelRootView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider()
-            if hostConfigured {
-                breadcrumb
+        ZStack {
+            VStack(spacing: 0) {
+                toolbar
                 Divider()
+                if hostConfigured {
+                    breadcrumb
+                    Divider()
+                }
+                if let activityText {
+                    activityStrip(activityText)
+                    Divider()
+                }
+                if let banner = bannerText {
+                    errorStrip(banner)
+                    Divider()
+                }
+                if model.rsyncMissingOnActiveHost {
+                    rsyncHint
+                    Divider()
+                }
+                content
             }
-            if let activityText {
-                activityStrip(activityText)
-                Divider()
+            if cancelTransferPrompt {
+                cancelTransferConfirmation
+            } else if let target = deleteTarget {
+                deleteConfirmation(for: target)
+            } else if let target = renameTarget {
+                renameConfirmation(for: target)
+            } else if newFolderPrompt {
+                newFolderConfirmation
             }
-            if let banner = bannerText {
-                errorStrip(banner)
-                Divider()
-            }
-            if model.rsyncMissingOnActiveHost {
-                rsyncHint
-                Divider()
-            }
-            content
         }
         .frame(width: 360, height: 520)
         .onAppear {
             model.panelVisible = true
             if browser.session == nil { model.activateBrowser() }
         }
-        .onDisappear { model.panelVisible = false }
-        .alert(L("New Folder"), isPresented: $newFolderPrompt) {
-            TextField(L("Folder name"), text: $newFolderName)
-            Button(L("Create")) {
-                let name = newFolderName.trimmingCharacters(in: .whitespaces)
-                guard !name.isEmpty else { return }
-                Task { await browser.createFolder(named: name) }
-            }
-            Button(L("Cancel"), role: .cancel) {}
+        .onDisappear {
+            model.panelVisible = false
+            selection.removeAll()
+            selectionAnchor = nil
+            cancelTransferPrompt = false
         }
-        .alert(L("Rename"), isPresented: renamePresented) {
-            TextField(L("New name"), text: $renameName)
-            Button(L("Rename")) {
-                let name = renameName.trimmingCharacters(in: .whitespaces)
-                guard let target = renameTarget, !name.isEmpty, name != target.name else { return }
-                Task { await browser.rename(target, to: name) }
-            }
-            Button(L("Cancel"), role: .cancel) {}
+        .onChange(of: browser.path) { _, _ in
+            selection.removeAll()
+            selectionAnchor = nil
         }
-        .confirmationDialog(
-            deleteQuestion,
-            isPresented: deletePresented,
-            titleVisibility: .visible
-        ) {
-            Button(L("Delete"), role: .destructive) {
-                guard let target = deleteTarget else { return }
-                Task { await browser.delete(target) }
-            }
-        } message: {
-            Text(L("The remote file is deleted immediately. This cannot be undone."))
+        .onChange(of: browser.entries) { _, entries in
+            selection.formIntersection(entries.map(\.id))
+        }
+        .onChange(of: transfers.activeCount) { _, count in
+            if count == 0 { cancelTransferPrompt = false }
         }
         .sheet(item: $model.rsyncInstall) { flow in
             RsyncInstallSheet(flow: flow, model: model)
@@ -173,20 +173,26 @@ struct PanelRootView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: LeafiyDesign.Spacing.xs) {
                     ForEach(Array(browser.breadcrumbs.enumerated()), id: \.offset) { index, crumb in
+                        let isCurrentDirectory = index == browser.breadcrumbs.count - 1
                         if index > 0 {
                             Image(systemName: "chevron.compact.right")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
-                        Button(crumb.name) {
-                            Task { await browser.open(crumb.path) }
+                        if isCurrentDirectory {
+                            Text(crumb.name)
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                        } else {
+                            Button {
+                                Task { await browser.open(crumb.path) }
+                            } label: {
+                                Text(crumb.name)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .font(.callout)
-                        .foregroundStyle(
-                            index == browser.breadcrumbs.count - 1
-                                ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)
-                        )
                     }
                 }
                 .padding(.horizontal, LeafiyDesign.Spacing.m)
@@ -202,14 +208,22 @@ struct PanelRootView: View {
         )
     }
 
-    private var hasVisibleEntries: Bool {
+    private var visibleEntries: [RemoteEntry] {
         model.settings.showHiddenFiles
-            ? !browser.entries.isEmpty
-            : browser.entries.contains { !$0.name.hasPrefix(".") }
+            ? browser.entries
+            : browser.entries.filter { !$0.name.hasPrefix(".") }
+    }
+
+    private var hasVisibleEntries: Bool {
+        !visibleEntries.isEmpty
     }
 
     private var activityText: String? {
-        if transfers.activeCount > 0 { return L("Copying…") }
+        if transfers.activeCount > 0 {
+            let status = L("Copying…")
+            guard let speed = transfers.formattedSpeed else { return status }
+            return "\(status) \(speed)"
+        }
         if browser.isLoading { return L("Listing directory…") }
         return nil
     }
@@ -222,6 +236,14 @@ struct PanelRootView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+            if transfers.activeCount > 0 {
+                Button(L("Cancel")) {
+                    cancelTransferPrompt = true
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+                .disabled(transfers.isCancelling)
+            }
         }
         .padding(.horizontal, LeafiyDesign.Spacing.m)
         .padding(.vertical, LeafiyDesign.Spacing.xs)
@@ -315,16 +337,16 @@ struct PanelRootView: View {
             }
             .leafiyDropHighlight(listTargeted)
         } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(browser.entries) { entry in
-                        if model.settings.showHiddenFiles || !entry.name.hasPrefix(".") {
-                            row(entry)
-                        }
-                    }
+            List(selection: $selection) {
+                ForEach(visibleEntries) { entry in
+                    row(entry)
+                        .tag(entry.id)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
                 }
-                .padding(.vertical, LeafiyDesign.Spacing.xs)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .leafiyFileDrop(isTargeted: $listTargeted) { urls in
                 model.panelDrop(urls, into: browser.path)
             }
@@ -341,40 +363,198 @@ struct PanelRootView: View {
             open: {
                 Task { await browser.enter(entry) }
             },
-            promise: { model.dragOutPromise(for: entry) }
+            promises: {
+                model.dragOutPromises(for: effectiveEntries(for: entry))
+            },
+            multiDragEnabled: selection.contains(entry.id)
+                && effectiveEntries(for: entry).count > 1,
+            select: {
+                select(entry, modifiers: NSEvent.modifierFlags)
+            }
         )
         .contextMenu {
+            rowContextMenu(for: entry)
+        }
+    }
+
+    private func effectiveEntries(for entry: RemoteEntry) -> [RemoteEntry] {
+        BrowserModel.effectiveEntries(
+            for: entry,
+            selection: selection,
+            in: visibleEntries
+        )
+    }
+
+    private func select(_ entry: RemoteEntry, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.contains(.shift),
+           let anchorID = selectionAnchor ?? (selection.count == 1 ? selection.first : nil),
+           let anchorIndex = visibleEntries.firstIndex(where: { $0.id == anchorID }),
+           let entryIndex = visibleEntries.firstIndex(where: { $0.id == entry.id }) {
+            let lower = min(anchorIndex, entryIndex)
+            let upper = max(anchorIndex, entryIndex)
+            let range = Set(visibleEntries[lower...upper].map(\.id))
+            if modifiers.contains(.command) {
+                selection.formUnion(range)
+            } else {
+                selection = range
+            }
+            return
+        }
+
+        selectionAnchor = entry.id
+        if modifiers.contains(.command) {
+            if selection.contains(entry.id) {
+                selection.remove(entry.id)
+            } else {
+                selection.insert(entry.id)
+            }
+        } else {
+            selection = [entry.id]
+        }
+    }
+
+
+    @ViewBuilder
+    private func rowContextMenu(for entry: RemoteEntry) -> some View {
+        let entries = effectiveEntries(for: entry)
+
+        Button(L("Download")) {
+            model.download(entries)
+        }
+
+        if entries.count == 1 {
+            Divider()
             Button(L("Rename…")) {
                 renameTarget = entry
                 renameName = entry.name
             }
-            Button(L("Delete…"), role: .destructive) { deleteTarget = entry }
-            Divider()
-            Button(L("New Folder…")) {
-                newFolderName = L("untitled folder")
-                newFolderPrompt = true
+            Button(L("Delete…"), role: .destructive) {
+                deleteTarget = entry
             }
+        }
+
+        Divider()
+        Button(L("New Folder…")) {
+            newFolderName = L("untitled folder")
+            newFolderPrompt = true
         }
     }
 
     // MARK: - Dialog plumbing
 
-    private var renamePresented: Binding<Bool> {
-        Binding(
-            get: { renameTarget != nil },
-            set: { if !$0 { renameTarget = nil } }
-        )
+    private var cancelTransferConfirmation: some View {
+        confirmationOverlay {
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.m) {
+                Text(L("Cancel ongoing transfers?"))
+                    .font(.headline)
+                Text(L("All current transfers will stop. Incomplete files may remain at their destinations."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button(L("Keep Copying")) { cancelTransferPrompt = false }
+                    Button(L("Cancel Transfers"), role: .destructive) {
+                        cancelTransferPrompt = false
+                        transfers.cancelActiveTransfers()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
+            }
+        }
     }
 
-    private var deletePresented: Binding<Bool> {
-        Binding(
-            get: { deleteTarget != nil },
-            set: { if !$0 { deleteTarget = nil } }
-        )
+    private var newFolderConfirmation: some View {
+        confirmationOverlay {
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.m) {
+                Text(L("New Folder"))
+                    .font(.headline)
+                TextField(L("Folder name"), text: $newFolderName)
+                    .onSubmit { createFolder() }
+                HStack {
+                    Spacer()
+                    Button(L("Cancel")) { newFolderPrompt = false }
+                    Button(L("Create")) { createFolder() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(newFolderName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
     }
 
-    private var deleteQuestion: String {
-        String(format: L("Delete “%@”?"), deleteTarget?.name ?? "")
+    private func renameConfirmation(for target: RemoteEntry) -> some View {
+        confirmationOverlay {
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.m) {
+                Text(L("Rename"))
+                    .font(.headline)
+                TextField(L("New name"), text: $renameName)
+                    .onSubmit { rename(target) }
+                HStack {
+                    Spacer()
+                    Button(L("Cancel")) { renameTarget = nil }
+                    Button(L("Rename")) { rename(target) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(renameName.trimmingCharacters(in: .whitespaces).isEmpty || renameName == target.name)
+                }
+            }
+        }
+    }
+
+    private func deleteConfirmation(for target: RemoteEntry) -> some View {
+        confirmationOverlay {
+            VStack(alignment: .leading, spacing: LeafiyDesign.Spacing.m) {
+                Text(String(format: L("Delete “%@”?"), target.name))
+                    .font(.headline)
+                Text(L("The remote file is deleted immediately. This cannot be undone."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button(L("Cancel")) { deleteTarget = nil }
+                    Button(L("Delete"), role: .destructive) {
+                        deleteTarget = nil
+                        Task { await browser.delete(target) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
+            }
+        }
+    }
+
+    /// AppKit prompts take focus away from a window-style `MenuBarExtra`,
+    /// closing the panel before their controls can be used. Keep every file
+    /// operation prompt inside the panel instead.
+    private func confirmationOverlay<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack {
+            Color.black.opacity(0.24)
+                .ignoresSafeArea()
+
+            content()
+            .padding(LeafiyDesign.Spacing.l)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(radius: 12)
+            .padding(LeafiyDesign.Spacing.l)
+            .accessibilityAddTraits(.isModal)
+        }
+    }
+
+    private func createFolder() {
+        let name = newFolderName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        newFolderPrompt = false
+        Task { await browser.createFolder(named: name) }
+    }
+
+    private func rename(_ target: RemoteEntry) {
+        let name = renameName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name != target.name else { return }
+        renameTarget = nil
+        Task { await browser.rename(target, to: name) }
     }
 }
 
@@ -382,21 +562,36 @@ private struct PanelRow: View {
     let entry: RemoteEntry
     let dropInto: ([URL]) -> Void
     let open: () -> Void
-    let promise: () -> LeafiyFilePromise?
+    let promises: @MainActor () -> [LeafiyFilePromise]
+    let multiDragEnabled: Bool
+    let select: @MainActor () -> Void
 
     @State private var targeted = false
     @State private var hovering = false
 
     var body: some View {
         if entry.isDirectory {
-            core
-                .leafiyFileDrop(isTargeted: $targeted) { dropInto($0) }
-                .leafiyDropHighlight(targeted)
-                .onTapGesture(count: 2) { open() }
-        } else if let promise = promise() {
-            core.leafiyFilePromiseDragOut(promise)
+            dragSource(
+                core
+                    .leafiyFileDrop(isTargeted: $targeted) { dropInto($0) }
+                    .leafiyDropHighlight(targeted)
+                    .onTapGesture(count: 2) { open() }
+            )
         } else {
-            core
+            dragSource(core)
+        }
+    }
+
+    @ViewBuilder
+    private func dragSource<Content: View>(_ content: Content) -> some View {
+        if multiDragEnabled {
+            content.leafiyFilePromisesDragOut(promises)
+        } else if let promise = promises().first {
+            content
+                .onTapGesture { select() }
+                .leafiyFilePromiseDragOut(promise)
+        } else {
+            content
         }
     }
 

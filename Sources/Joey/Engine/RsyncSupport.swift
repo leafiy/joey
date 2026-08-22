@@ -173,4 +173,20 @@ enum RsyncSupport {
         guard let value = Int(digits) else { return nil }
         return Double(value) / 100.0
     }
+
+    /// Returns the cumulative byte count at the start of an rsync progress
+    /// line. Modern progress2 counts the whole transfer; legacy progress
+    /// resets the count for each file.
+    static func parseProgressBytes(_ line: String) -> UInt64? {
+        guard let range = line.range(
+            of: #"^\s*[0-9][0-9,]*\s+\d+%"#,
+            options: .regularExpression
+        ) else {
+            return nil
+        }
+        guard let field = line[range].split(whereSeparator: \.isWhitespace).first else {
+            return nil
+        }
+        return UInt64(field.filter(\.isNumber))
+    }
 }

@@ -1,4 +1,8 @@
 .build/
+build/
+build.noindex/
+*.iconset/
 .swiftpm/
 Vendor/_work/
 .DS_Store
+*.log

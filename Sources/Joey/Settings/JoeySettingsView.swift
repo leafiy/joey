@@ -13,6 +13,7 @@ struct JoeySettingsView: View {
                 launchAtLogin: settingsBinding(\.launchAtLogin),
                 applicationIconMode: settingsBinding(\.applicationIconMode)
             )
+            DownloadsPane(model: model)
             HostsPane(model: model)
             privacyPane
         }
@@ -49,6 +50,49 @@ struct JoeySettingsView: View {
             }
             .font(.callout)
         }
+    }
+}
+
+// MARK: - Downloads
+
+private struct DownloadsPane: View {
+    @ObservedObject var model: JoeyModel
+
+    var body: some View {
+        SettingsPane(L("Downloads"), systemImage: "arrow.down.circle", height: 260) {
+            Section {
+                LabeledContent(L("Download folder")) {
+                    HStack {
+                        Text(model.settings.downloadDirectoryURL.path)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundStyle(.secondary)
+                        Button(L("Choose…")) {
+                            chooseDownloadDirectory()
+                        }
+                    }
+                }
+                Text(L("Downloads from the Browser are saved here."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func chooseDownloadDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = L("Choose Download Folder")
+        panel.message = L("Choose where downloaded files are saved.")
+        panel.prompt = L("Choose")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.directoryURL = model.settings.downloadDirectoryURL
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        model.updateSettings { $0.downloadDirectory = abbreviatedHomePath(url) }
     }
 }
 
@@ -318,12 +362,6 @@ private struct HostSection: View {
         return fileManager.homeDirectoryForCurrentUser
     }
 
-    private func abbreviatedHomePath(_ url: URL) -> String {
-        let path = url.standardizedFileURL.path
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
-        guard path.hasPrefix(home + "/") else { return path }
-        return "~" + path.dropFirst(home.count)
-    }
 
     private func binding<Value>(
         _ keyPath: WritableKeyPath<HostRecord, Value>
@@ -344,5 +382,12 @@ private struct HostSection: View {
             }
         )
     }
+}
+
+private func abbreviatedHomePath(_ url: URL) -> String {
+    let path = url.standardizedFileURL.path
+    let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+    guard path.hasPrefix(home + "/") else { return path }
+    return "~" + path.dropFirst(home.count)
 }
 

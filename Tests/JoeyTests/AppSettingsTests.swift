@@ -20,6 +20,7 @@ final class AppSettingsTests: XCTestCase {
         host.defaultDirectory = "/srv/apps"
         host.isFavorite = true
         settings.showHiddenFiles = true
+        settings.downloadDirectory = "~/Desktop/Joey Downloads"
         settings.hosts = [host]
         settings.activeHostID = host.id
 
@@ -27,7 +28,18 @@ final class AppSettingsTests: XCTestCase {
         let loaded = store.load()
         XCTAssertEqual(loaded.hosts, settings.hosts)
         XCTAssertTrue(loaded.showHiddenFiles)
+        XCTAssertEqual(loaded.downloadDirectory, settings.downloadDirectory)
         XCTAssertEqual(loaded.activeHostID, host.id)
+    }
+
+    func testDefaultDownloadDirectoryUsesTheMacDownloadsFolder() {
+        let settings = AppSettings.defaults
+        let expected = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Downloads", isDirectory: true)
+            .standardizedFileURL
+
+        XCTAssertEqual(settings.downloadDirectory, "~/Downloads")
+        XCTAssertEqual(settings.downloadDirectoryURL, expected)
     }
 
     func testLegacyHostWithoutDefaultDirectoryStillDecodes() throws {
@@ -128,6 +140,7 @@ final class AppSettingsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppSettings.self, from: json)
         XCTAssertEqual(decoded.appLanguage, "zh-Hans")
         XCTAssertFalse(decoded.showHiddenFiles)
+        XCTAssertEqual(decoded.downloadDirectory, AppSettings.defaults.downloadDirectory)
         XCTAssertTrue(decoded.hosts.isEmpty)
         XCTAssertTrue(decoded.favoriteHosts.isEmpty)
     }
