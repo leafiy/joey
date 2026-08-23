@@ -19,6 +19,9 @@ cd "$(dirname "$0")"
 
 FAMILY_CONTRACT="../leafiy-ui/scripts/check-app-family-contract.sh"
 [ -x "$FAMILY_CONTRACT" ] || { echo "error: shared app-family contract not found: $FAMILY_CONTRACT"; exit 1; }
+BUILD_COMMON="../leafiy-ui/scripts/macos-app-build-common.sh"
+[ -r "$BUILD_COMMON" ] || { echo "error: shared macOS build policy not found: $BUILD_COMMON"; exit 1; }
+. "$BUILD_COMMON"
 "$FAMILY_CONTRACT" "$PWD"
 
 command -v swift >/dev/null 2>&1 || { echo "error: needs macOS with Xcode command line tools"; exit 1; }
@@ -418,8 +421,8 @@ build_dmg() { # $1 = arch
     arch="$1"
     scratch="$WORK_ROOT/swift-$arch"
     echo "== building $arch =="
-    swift build -c release --disable-build-manifest-caching --arch "$arch" --scratch-path "$scratch" --product joey
-    bin_dir=$(swift build -c release --disable-build-manifest-caching --arch "$arch" --scratch-path "$scratch" --product joey --show-bin-path)
+    leafiy_swift_release_build "$scratch" --arch "$arch" --product joey
+    bin_dir=$(leafiy_swift_release_bin_path "$scratch" --arch "$arch" --product joey)
 
     app="$WORK_ROOT/$arch/Joey.app"
     rm -rf "${WORK_ROOT:?}/$arch"
@@ -429,7 +432,7 @@ build_dmg() { # $1 = arch
         echo "error: packaged app version does not match $VERSION_NUMBER"
         exit 1
     }
-    cp "$bin_dir/joey" "$app/Contents/MacOS/Joey"
+    leafiy_install_release_executable "$bin_dir/joey" "$app/Contents/MacOS/Joey"
     lipo "$LIBSSH_DYLIB" -verify_arch "$arch" >/dev/null || {
         echo "error: bundled libssh.dylib does not contain $arch"
         exit 1
@@ -446,10 +449,7 @@ build_dmg() { # $1 = arch
         cp -R "$bin_dir/LeafiyUI_LeafiyUI.bundle" "$app/Contents/Resources/"
     fi
 
-    [ -f "$app/Contents/Resources/AppIcon.icns" ] || { echo "error: AppIcon.icns is missing"; exit 1; }
-    [ -f "$app/Contents/Resources/Assets.car" ] || { echo "error: Assets.car is missing"; exit 1; }
-    [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$app/Contents/Info.plist")" = "AppIcon" ] || { echo "error: CFBundleIconName must be AppIcon"; exit 1; }
-    cmp -s "$MENU_ICON_SOURCE" "$app/Contents/Resources/joey.png" || { echo "error: menu bar icon does not match $MENU_ICON_SOURCE"; exit 1; }
+    leafiy_validate_app_icon_contract "$app" "$MENU_ICON_SOURCE" "joey.png"
 
     entitlements="$WORK_ROOT/joey.entitlements"
     cat > "$entitlements" <<'EOF'
@@ -485,8 +485,7 @@ EOF
     cp -R "$app" "$staging/"
     ln -s /Applications "$staging/Applications"
     dmg="$ARTIFACT_DIR/joey-$VERSION-$arch.dmg"
-    rm -f "$dmg"
-    hdiutil create -volname "Joey" -srcfolder "$staging" -format UDZO -quiet "$dmg"
+    leafiy_create_compressed_dmg "Joey" "$staging" "$dmg"
     if [ "$SIGN_IDENTITY" != "-" ]; then
         codesign --force --timestamp --sign "$SIGN_IDENTITY" "$dmg"
         codesign --verify --verbose=2 "$dmg"
