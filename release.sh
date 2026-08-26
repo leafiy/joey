@@ -438,7 +438,9 @@ build_dmg() { # $1 = arch
         exit 1
     }
     cp "$LIBSSH_DYLIB" "$app/Contents/Frameworks/libssh.dylib"
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$app/Contents/MacOS/Joey" 2>/dev/null || true
+    install_name_tool -change "@rpath/libssh.dylib" \
+        "@executable_path/../Frameworks/libssh.dylib" \
+        "$app/Contents/MacOS/Joey"
     printf 'APPL????' > "$app/Contents/PkgInfo"
     cp "$WORK_ROOT/AppIcon.icns" "$WORK_ROOT/Assets.car" "$app/Contents/Resources/"
     cp "$MENU_ICON_SOURCE" "$app/Contents/Resources/joey.png"

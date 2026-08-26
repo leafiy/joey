@@ -50,11 +50,13 @@ cp Info.plist "$APP/Contents/Info.plist"
 leafiy_install_release_executable "$BIN_DIR/joey" "$APP/Contents/MacOS/Joey"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-# The libssh dylib ships inside the bundle; the binary references it @rpath.
+# The libssh dylib ships inside the bundle; use a bundle-relative load path.
 LIBSSH_DYLIB=$(find Vendor/libssh.xcframework -name 'libssh.dylib' | head -n 1)
 [ -n "$LIBSSH_DYLIB" ] || { echo "error: libssh.dylib not found inside the xcframework"; exit 1; }
 cp "$LIBSSH_DYLIB" "$APP/Contents/Frameworks/libssh.dylib"
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Joey" 2>/dev/null || true
+install_name_tool -change "@rpath/libssh.dylib" \
+    "@executable_path/../Frameworks/libssh.dylib" \
+    "$APP/Contents/MacOS/Joey"
 
 "$ICON_COMPILER" "$APP_ICON_SOURCE" "$APP/Contents/Resources" "$BUILD_ROOT/appicon-work"
 cp "$MENU_ICON_SOURCE" "$APP/Contents/Resources/joey.png"
