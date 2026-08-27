@@ -339,14 +339,41 @@ final class TransferManager: ObservableObject {
             speedSampler.begin(streamID, initialBytes: 0)
             let reportSpeed = speedReporter(for: streamID)
             defer { speedSampler.finish(streamID) }
-            try await session.upload(localPath: url.path, remotePath: remoteBase) { done, _ in
-                reportSpeed(done)
-                return cancellationState.isCurrent(cancellationToken)
-            }
-            guard cancellationState.isCurrent(cancellationToken) else {
+            // Data lands on a hidden sibling first. The sftp path has no rsync
+            // `--partial` behind it, so this is what lets a dropped upload
+            // resume instead of leaving a truncated file under the real name
+            // (CONTEXT.md: Transfer).
+            let stagingPath = Self.partialUploadPath(for: remoteBase)
+            do {
+                try await session.upload(localPath: url.path, remotePath: stagingPath) { done, _ in
+                    reportSpeed(done)
+                    return cancellationState.isCurrent(cancellationToken)
+                }
+                guard cancellationState.isCurrent(cancellationToken) else {
+                    throw SSHEngineError.cancelled
+                }
+                try await session.publishStagedUpload(from: stagingPath, to: remoteBase)
+            } catch SSHEngineError.cancelled {
+                // Cancelling is deliberate and the next upload truncates the
+                // staging file anyway, so it carries no resume value. Clear it
+                // now, while the session is still healthy — a staging file left
+                // by a network failure is kept, since a retry can use it.
+                await session.discardStagedUpload(stagingPath)
                 throw SSHEngineError.cancelled
             }
         }
+    }
+
+    /// The hidden staging name an upload writes to before it is published
+    /// under `remotePath`. Mirrors `partialDownloadURL` on the download side.
+    static func partialUploadPath(for remotePath: String) -> String {
+        let separator: Character = remotePath.contains("\\") ? "\\" : "/"
+        guard let index = remotePath.lastIndex(of: separator) else {
+            return ".\(remotePath).joeyupload"
+        }
+        let directory = remotePath[..<index]
+        let name = remotePath[remotePath.index(after: index)...]
+        return "\(directory)\(separator).\(name).joeyupload"
     }
 
     private func rsyncUpload(

@@ -67,7 +67,117 @@ final class BrowserDownloadTests: XCTestCase {
         )
     }
 
-    func testDownloadResumerContinuesFromPartialData() async throws {
+    func testStagedUploadUsesHiddenSibling() {
+        XCTAssertEqual(
+            TransferManager.partialUploadPath(for: "/srv/data/report.pdf"),
+            "/srv/data/.report.pdf.joeyupload"
+        )
+        XCTAssertEqual(
+            TransferManager.partialUploadPath(for: "C:\\Users\\joe\\report.pdf"),
+            "C:\\Users\\joe\\.report.pdf.joeyupload"
+        )
+        XCTAssertEqual(
+            TransferManager.partialUploadPath(for: "/report.pdf"),
+            "/.report.pdf.joeyupload"
+        )
+    }
+
+    func testRetryDelayBacksOffAndStaysUnderTheCap() {
+        let base: UInt64 = 500_000_000
+        let cap: UInt64 = 15_000_000_000
+        // Jitter is a 0.5…1.0 multiplier, so each step is bounded rather than exact.
+        for step in 0..<4 {
+            let delay = TransferResumer.retryDelay(step: step, base: base, cap: cap)
+            let ceiling = min(base << UInt64(step), cap)
+            XCTAssertGreaterThanOrEqual(delay, ceiling / 2)
+            XCTAssertLessThanOrEqual(delay, ceiling)
+        }
+        // A far-out step must saturate at the cap, not overflow.
+        XCTAssertLessThanOrEqual(
+            TransferResumer.retryDelay(step: 40, base: base, cap: cap), cap)
+        XCTAssertEqual(TransferResumer.retryDelay(step: 3, base: 0, cap: cap), 0)
+    }
+
+    func testResumerKeepsRetryingWhileBytesKeepLanding() async throws {
+        let partial = FileManager.default.temporaryDirectory
+            .appendingPathComponent("joey-progress-budget-\(UUID().uuidString)")
+        XCTAssertTrue(FileManager.default.createFile(atPath: partial.path, contents: Data()))
+        defer { try? FileManager.default.removeItem(at: partial) }
+
+        var attempts = 0
+        try await TransferResumer.run(
+            maxAttempts: 2,
+            baseRetryDelayNanoseconds: 0,
+            bytesTransferred: { localFileSize(partial.path) ?? 0 },
+            attempt: { _ in
+                attempts += 1
+                // Four drops in a row, each one after real progress: the budget
+                // of 2 would have been spent long before without the reset.
+                guard attempts > 4 else {
+                    let handle = try FileHandle(forWritingTo: partial)
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: Data([0]))
+                    try handle.close()
+                    throw SSHEngineError.sftp("write to archive.zip at byte \(attempts)")
+                }
+            }
+        )
+
+        XCTAssertEqual(attempts, 5)
+    }
+
+    func testResumerStopsWhenAFailedAttemptTransfersNothing() async {
+        let partial = FileManager.default.temporaryDirectory
+            .appendingPathComponent("joey-stalled-\(UUID().uuidString)")
+        XCTAssertTrue(FileManager.default.createFile(atPath: partial.path, contents: Data()))
+        defer { try? FileManager.default.removeItem(at: partial) }
+
+        var attempts = 0
+        do {
+            try await TransferResumer.run(
+                maxAttempts: 3,
+                baseRetryDelayNanoseconds: 0,
+                bytesTransferred: { localFileSize(partial.path) ?? 0 },
+                attempt: { _ in
+                    attempts += 1
+                    throw SSHEngineError.sftp("write to archive.zip at byte 0")
+                }
+            )
+            XCTFail("Expected the transfer to give up")
+        } catch {
+            XCTAssertEqual(attempts, 3)
+        }
+    }
+
+    func testUploadResumesFromTheOffsetAlreadyOnTheServer() async throws {
+        let partial = FileManager.default.temporaryDirectory
+            .appendingPathComponent("joey-upload-offset-\(UUID().uuidString)")
+        XCTAssertTrue(FileManager.default.createFile(
+            atPath: partial.path,
+            contents: Data([0, 1, 2])
+        ))
+        defer { try? FileManager.default.removeItem(at: partial) }
+
+        var offsets: [UInt64] = []
+        try await TransferResumer.run(
+            maxAttempts: 3,
+            baseRetryDelayNanoseconds: 0,
+            probeBeforeFirstAttempt: false,
+            bytesTransferred: { localFileSize(partial.path) ?? 0 },
+            attempt: { offset in
+                offsets.append(offset)
+                guard offsets.count > 1 else {
+                    throw SSHEngineError.session("connection lost")
+                }
+            }
+        )
+
+        // An upload never pays for a stat before its first try; the retry
+        // picks up from what the interrupted attempt actually left behind.
+        XCTAssertEqual(offsets, [0, 3])
+    }
+
+    func testResumerContinuesFromPartialData() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("joey-resume-tests-\(UUID().uuidString)", isDirectory: true)
         let partial = directory.appendingPathComponent(".archive.zip.joeydownload")
@@ -80,21 +190,22 @@ final class BrowserDownloadTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         var attempts = 0
-        try await DownloadResumer.run(
-            localPath: partial.path,
+        try await TransferResumer.run(
             maxAttempts: 3,
-            retryDelayNanoseconds: 0
-        ) {
-            attempts += 1
-            if attempts == 1 {
-                let handle = try FileHandle(forWritingTo: partial)
-                try handle.seekToEnd()
-                try handle.write(contentsOf: Data([3, 4]))
-                try handle.close()
-                throw SSHEngineError.sftp("read from archive.zip at byte 5")
+            baseRetryDelayNanoseconds: 0,
+            bytesTransferred: { localFileSize(partial.path) ?? 0 },
+            attempt: { _ in
+                attempts += 1
+                if attempts == 1 {
+                    let handle = try FileHandle(forWritingTo: partial)
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: Data([3, 4]))
+                    try handle.close()
+                    throw SSHEngineError.sftp("read from archive.zip at byte 5")
+                }
+                XCTAssertEqual(localFileSize(partial.path), 5)
             }
-            XCTAssertEqual(localFileSize(partial.path), 5)
-        }
+        )
 
         XCTAssertEqual(attempts, 2)
     }
@@ -131,20 +242,21 @@ final class BrowserDownloadTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
     }
 
-    func testDownloadResumerDoesNotRetryPermanentErrors() async {
+    func testResumerDoesNotRetryPermanentErrors() async {
         let partial = FileManager.default.temporaryDirectory
             .appendingPathComponent(".joey-permanent-error-\(UUID().uuidString)")
         var attempts = 0
 
         do {
-            try await DownloadResumer.run(
-                localPath: partial.path,
+            try await TransferResumer.run(
                 maxAttempts: 3,
-                retryDelayNanoseconds: 0
-            ) {
-                attempts += 1
-                throw SSHEngineError.auth("rejected")
-            }
+                baseRetryDelayNanoseconds: 0,
+                bytesTransferred: { localFileSize(partial.path) ?? 0 },
+                attempt: { _ in
+                    attempts += 1
+                    throw SSHEngineError.auth("rejected")
+                }
+            )
             XCTFail("Expected authentication failure")
         } catch {
             XCTAssertEqual(attempts, 1)
