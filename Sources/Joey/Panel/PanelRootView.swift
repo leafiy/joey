@@ -531,12 +531,12 @@ struct PanelRootView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         ZStack {
-            Color.black.opacity(0.24)
+            Color.black.opacity(0.24) // leafiy-exception: modal scrim behind the panel sheet
                 .ignoresSafeArea()
 
             content()
             .padding(LeafiyDesign.Spacing.l)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: LeafiyDesign.Radius.panel, style: .continuous))
             .shadow(radius: 12)
             .padding(LeafiyDesign.Spacing.l)
             .accessibilityAddTraits(.isModal)

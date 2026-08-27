@@ -81,7 +81,7 @@ private struct DownloadsPane: View {
     }
 
     private func chooseDownloadDirectory() {
-        let panel = NSOpenPanel()
+        let panel = NSOpenPanel() // leafiy-gap: LeafiyFilePanel
         panel.title = L("Choose Download Folder")
         panel.message = L("Choose where downloaded files are saved.")
         panel.prompt = L("Choose")
@@ -326,7 +326,7 @@ private struct HostSection: View {
     }
 
     private func choosePrivateKey() {
-        let panel = NSOpenPanel()
+        let panel = NSOpenPanel() // leafiy-gap: LeafiyFilePanel
         panel.title = L("Choose Private Key")
         panel.message = L("Choose a private key file.")
         panel.prompt = L("Choose")
