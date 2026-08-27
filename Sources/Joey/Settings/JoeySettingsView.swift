@@ -81,17 +81,13 @@ private struct DownloadsPane: View {
     }
 
     private func chooseDownloadDirectory() {
-        let panel = NSOpenPanel() // leafiy-gap: LeafiyFilePanel
-        panel.title = L("Choose Download Folder")
-        panel.message = L("Choose where downloaded files are saved.")
-        panel.prompt = L("Choose")
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.resolvesAliases = true
-        panel.directoryURL = model.settings.downloadDirectoryURL
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = LeafiyFilePanel.chooseFolder(
+            directory: model.settings.downloadDirectoryURL,
+            canCreateDirectories: false,
+            title: L("Choose Download Folder"),
+            message: L("Choose where downloaded files are saved."),
+            prompt: L("Choose")
+        ) else { return }
         model.updateSettings { $0.downloadDirectory = abbreviatedHomePath(url) }
     }
 }
@@ -326,17 +322,12 @@ private struct HostSection: View {
     }
 
     private func choosePrivateKey() {
-        let panel = NSOpenPanel() // leafiy-gap: LeafiyFilePanel
-        panel.title = L("Choose Private Key")
-        panel.message = L("Choose a private key file.")
-        panel.prompt = L("Choose")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.resolvesAliases = true
-        panel.directoryURL = privateKeyPickerDirectory
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = LeafiyFilePanel.chooseFile(
+            directory: privateKeyPickerDirectory,
+            title: L("Choose Private Key"),
+            message: L("Choose a private key file."),
+            prompt: L("Choose")
+        ) else { return }
         binding(\.privateKeyPath).wrappedValue = abbreviatedHomePath(url)
     }
 
