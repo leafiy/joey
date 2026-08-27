@@ -545,16 +545,12 @@ rm -rf "$WORK_ROOT"
 )
 
 # Publish the exact source commit used to build or validate the artifacts.
-# The private Gitea origin is an optional mirror; GitHub and leafiy.com do not
-# depend on it.
-if [ -n "${GITEA_TOKEN:-}" ]; then
-    git push origin HEAD:main
-    REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')
-    [ "$HEAD_SHA" = "$REMOTE_MAIN" ] || {
-        echo "error: pushed release commit does not match origin/main"
-        exit 1
-    }
-fi
+git push origin HEAD:main
+REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')
+[ "$HEAD_SHA" = "$REMOTE_MAIN" ] || {
+    echo "error: pushed release commit does not match origin/main"
+    exit 1
+}
 if [ "$PUBLISH_TO_GITHUB" = "1" ]; then
     push_github_main
 fi
