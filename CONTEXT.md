@@ -47,8 +47,12 @@ Browser 右键 Download 的本地落点;默认使用 macOS Downloads,可在设�
 _Avoid_: export folder
 
 **Transfer**:
-一次上传或下载;能走 rsync 就走 rsync,否则 sftp。下载写入隐藏的 `.joeydownload` 暂存项目,连接中断后自动重连并从已有字节继续,完成后再原子显示最终名称;用户不感知协议切换和续传。
+一次上传或下载;能走 rsync 就走 rsync,否则 sftp。两个方向都先写隐藏暂存项目(下载 `.joeydownload` 落在本地,上传 `.joeyupload` 落在远端目录),连接中断后自动重连并从已有字节继续,完成后再原子改名为最终名称;用户不感知协议切换和续传。sftp 两个方向都用请求流水线,吞吐不再被单次往返延迟卡死。
 _Avoid_: sync、copy job
+
+**Staging Item**:
+Transfer 写到最终名称之前占位的隐藏项目。取消会清掉它(下次传输本就从头开始,留着没有续传价值),网络失败则保留给重试续用。
+_Avoid_: temp file、partial
 
 **rsync Acceleration**:
 私钥认证 Host 的上传加速路径;Host 设置自动检测本机与远程 rsync 并显示启用状态。远程缺失时可自动安装:root/NOPASSWD 直接执行,需要 sudo 时临时输入密码,权限不足则显示明确错误并继续回退 sftp。

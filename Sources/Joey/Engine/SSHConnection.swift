@@ -110,10 +110,23 @@ final class SSHConnection {
             // The Host Record is authoritative; don't let ~/.ssh/config rewrite it.
             var processConfig: CBool = false
             _ = ssh_options_set(s, SSH_OPTIONS_PROCESS_CONFIG, &processConfig)
+            // Nagle batches the small SFTP request packets, adding a delay on
+            // top of every round-trip the window is already paying for.
+            var noDelay: CInt = 1
+            _ = ssh_options_set(s, SSH_OPTIONS_NODELAY, &noDelay)
+            // libssh's default order leads with chacha20-poly1305, which is
+            // software-only; AES-GCM rides AES-NI on every Mac and every
+            // server worth talking to. This is libssh's own set, reordered —
+            // nothing is dropped, so no server becomes unreachable.
+            let ciphers = "aes128-gcm@openssh.com,aes256-gcm@openssh.com,"
+                + "chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr"
+            _ = ciphers.withCString { ssh_options_set(s, SSH_OPTIONS_CIPHERS_C_S, $0) }
+            _ = ciphers.withCString { ssh_options_set(s, SSH_OPTIONS_CIPHERS_S_C, $0) }
 
             guard ssh_connect(s) == SSH_OK else {
                 throw SSHEngineError.session("connect to \(host):\(port) failed: \(lastError(s))")
             }
+            configureSocketKeepalive(s)
             let fingerprint = try verifyHostKey(s)
             try authenticate(s, auth)
             return fingerprint
@@ -227,7 +240,10 @@ final class SSHConnection {
         sftp = sf
         if let limits = sftp_limits(sf) {
             defer { sftp_limits_free(limits) }
-            let cap: UInt64 = 4 << 20
+            // Pipelining multiplies this by the window depth, so it is capped
+            // far below the old 4 MB: a server advertising a huge chunk would
+            // otherwise put hundreds of megabytes in flight.
+            let cap: UInt64 = 1 << 20
             if limits.pointee.max_write_length > 0 {
                 maxWriteChunk = Int(min(limits.pointee.max_write_length, cap))
             }
@@ -270,6 +286,16 @@ final class SSHConnection {
         return attrs.pointee.size
     }
 
+    /// Size of a remote file, or nil when it isn't there. Resume probing asks
+    /// about files that legitimately don't exist yet, and a thrown error would
+    /// cost the caller its whole connection (see `HostSession`).
+    func statIfPresent(_ remotePath: String) -> UInt64? {
+        guard let sf = try? sftpSession() else { return nil }
+        guard let attrs = sftp_stat(sf, remotePath) else { return nil }
+        defer { sftp_attributes_free(attrs) }
+        return attrs.pointee.size
+    }
+
     func directoryExists(_ remotePath: String) throws -> Bool {
         let sf = try sftpSession()
         guard let attrs = sftp_stat(sf, remotePath) else { return false }
@@ -302,45 +328,156 @@ final class SSHConnection {
         }
     }
 
+    // MARK: - Transfer tuning
+
+    /// SFTP's request/response pattern caps a synchronous transfer at one
+    /// chunk per round-trip, so throughput collapses with latency however much
+    /// bandwidth is free — that, not the delta algorithm, is most of what makes
+    /// rsync feel fast on a bad link. Keeping many requests in flight decouples
+    /// the two. OpenSSH's own client holds 64 requests open; the window is
+    /// sized in bytes here so a server advertising a large chunk can't balloon
+    /// memory.
+    private static let targetInFlightBytes = 8 << 20
+    private static let maxPipelineDepth = 64
+    private static let minPipelineDepth = 4
+
+    private static func pipelineDepth(forChunk chunk: Int) -> Int {
+        let byBytes = targetInFlightBytes / max(chunk, 1)
+        return min(maxPipelineDepth, max(minPipelineDepth, byBytes))
+    }
+
+    /// A dropped Wi-Fi link or an expired NAT entry leaves the socket
+    /// half-open: with no probes the transfer parks until libssh's own timeout
+    /// fires, or indefinitely. Probing turns a dead link into a prompt error
+    /// the resume path can act on — the sftp counterpart to the rsync command
+    /// line's `ServerAliveInterval`.
+    private func configureSocketKeepalive(_ s: ssh_session) {
+        let fd = ssh_get_fd(s)
+        guard fd >= 0 else { return }
+        let size = socklen_t(MemoryLayout<CInt>.size)
+        var enable: CInt = 1
+        _ = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, size)
+        var idle: CInt = 15
+        _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle, size)
+        var interval: CInt = 5
+        _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, size)
+        var probes: CInt = 3
+        _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &probes, size)
+    }
+
+    // MARK: - Transfers
+
+    /// Uploads over a pipelined write window. `resumeOffset` continues what a
+    /// previous attempt left on the server; 0 truncates, so a shorter file
+    /// never inherits a longer one's tail.
     func upload(
         localPath: String,
         remotePath: String,
+        resumeFrom resumeOffset: UInt64 = 0,
         progress: (UInt64, UInt64) -> Bool
     ) throws {
         let sf = try sftpSession()
         let chunk = maxWriteChunk
+        let depth = Self.pipelineDepth(forChunk: chunk)
         guard let local = FileHandle(forReadingAtPath: localPath) else {
             throw SSHEngineError.io("cannot open local file \(localPath)")
         }
         defer { try? local.close() }
         let total = localFileSize(localPath) ?? 0
+        let startOffset = resumeOffset <= total ? resumeOffset : 0
 
-        guard let remote = sftp_open(sf, remotePath, O_WRONLY | O_CREAT | O_TRUNC, 0o644) else {
+        let flags = startOffset > 0 ? (O_WRONLY | O_CREAT) : (O_WRONLY | O_CREAT | O_TRUNC)
+        guard let remote = sftp_open(sf, remotePath, flags, 0o644) else {
             throw sftpError("open \(remotePath) for writing")
         }
         var remoteClosed = false
         defer { if !remoteClosed { sftp_close(remote) } }
 
-        var sent: UInt64 = 0
+        if startOffset > 0 {
+            guard sftp_seek64(remote, startOffset) == SSH_OK else {
+                throw sftpError("seek \(remotePath) to byte \(startOffset)")
+            }
+            try local.seek(toOffset: startOffset)
+        }
+
+        var window: [(aio: sftp_aio?, length: Int)] = []
+        window.reserveCapacity(depth)
+        var confirmed = startOffset
+        var queued = startOffset
+        var reachedEOF = false
+
+        // A begin_write leaves a reply queued inside libssh. Cancelling keeps
+        // the session alive for the next call, so the window has to be waited
+        // out rather than dropped; a hard failure discards the whole
+        // connection (see HostSession), where freeing is enough.
+        func drainWindow() {
+            for entry in window {
+                var aio = entry.aio
+                guard aio != nil else { continue }
+                _ = sftp_aio_wait_write(&aio)
+                if aio != nil { sftp_aio_free(aio) }
+            }
+            window.removeAll()
+        }
+        defer { for entry in window where entry.aio != nil { sftp_aio_free(entry.aio) } }
+
         while true {
-            guard progress(sent, total) else { throw SSHEngineError.cancelled }
-            let data = try autoreleasepool { try local.read(upToCount: chunk) }
-            guard let data, !data.isEmpty else { break }
-            try data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                var offset = 0
-                while offset < raw.count {
-                    let n = sftp_write(remote, raw.baseAddress! + offset, raw.count - offset)
-                    guard n > 0 else { throw sftpError("write to \(remotePath) at byte \(sent)") }
-                    offset += n
+            guard progress(confirmed, total) else {
+                drainWindow()
+                throw SSHEngineError.cancelled
+            }
+
+            while !reachedEOF, window.count < depth {
+                // Filling a deep window can push megabytes at the socket, so
+                // cancellation is polled per chunk here too rather than only
+                // once per completed request.
+                guard progress(confirmed, total) else {
+                    drainWindow()
+                    throw SSHEngineError.cancelled
+                }
+                let data = try autoreleasepool { try local.read(upToCount: chunk) }
+                guard let data, !data.isEmpty else {
+                    reachedEOF = true
+                    break
+                }
+                var aio: sftp_aio?
+                let requested = data.withUnsafeBytes { raw in
+                    sftp_aio_begin_write(remote, raw.baseAddress, raw.count, &aio)
+                }
+                guard requested > 0, aio != nil else {
+                    throw sftpError("write to \(remotePath) at byte \(queued)")
+                }
+                window.append((aio: aio, length: requested))
+                queued += UInt64(requested)
+                // libssh caps a request at the server's max_write_length; any
+                // remainder has to be re-read on the next pass.
+                if requested < data.count {
+                    try local.seek(toOffset: queued)
                 }
             }
-            sent += UInt64(data.count)
+
+            guard !window.isEmpty else { break }
+
+            let head = window.removeFirst()
+            var aio = head.aio
+            let written = sftp_aio_wait_write(&aio)
+            if aio != nil { sftp_aio_free(aio) }
+            guard written >= 0 else {
+                throw sftpError("write to \(remotePath) at byte \(confirmed)")
+            }
+            confirmed += UInt64(written)
+            guard written == head.length else {
+                throw sftpError("short write to \(remotePath) at byte \(confirmed)")
+            }
         }
-        _ = progress(sent, total)
+
+        _ = progress(confirmed, total)
         remoteClosed = true
         guard sftp_close(remote) == SSH_OK else { throw sftpError("close \(remotePath)") }
     }
 
+    /// Downloads over a pipelined read window, resuming from whatever the
+    /// local staging file already holds.
     func download(
         remotePath: String,
         localPath: String,
@@ -348,6 +485,7 @@ final class SSHConnection {
     ) throws {
         let sf = try sftpSession()
         let chunk = maxReadChunk
+        let depth = Self.pipelineDepth(forChunk: chunk)
         let total = try stat(remotePath)
         let existingSize = localFileSize(localPath) ?? 0
         let resumeOffset = existingSize <= total ? existingSize : 0
@@ -376,20 +514,81 @@ final class SSHConnection {
         }
         try local.seek(toOffset: resumeOffset)
 
+        var window: [(aio: sftp_aio?, length: Int)] = []
+        window.reserveCapacity(depth)
         var buffer = [UInt8](repeating: 0, count: chunk)
         var received = resumeOffset
+        var requested = resumeOffset
+
+        func drainWindow() {
+            guard !window.isEmpty else { return }
+            var scratch = [UInt8](repeating: 0, count: chunk)
+            for entry in window {
+                var aio = entry.aio
+                guard aio != nil else { continue }
+                _ = scratch.withUnsafeMutableBytes {
+                    sftp_aio_wait_read(&aio, $0.baseAddress!, chunk)
+                }
+                if aio != nil { sftp_aio_free(aio) }
+            }
+            window.removeAll()
+        }
+        defer { for entry in window where entry.aio != nil { sftp_aio_free(entry.aio) } }
+
         while true {
-            guard progress(received, total) else { throw SSHEngineError.cancelled }
-            let n = buffer.withUnsafeMutableBytes { sftp_read(remote, $0.baseAddress!, chunk) }
-            if n == 0 { break }
-            guard n > 0 else { throw sftpError("read from \(remotePath) at byte \(received)") }
+            guard progress(received, total) else {
+                drainWindow()
+                throw SSHEngineError.cancelled
+            }
+
+            while window.count < depth, requested < total {
+                guard progress(received, total) else {
+                    drainWindow()
+                    throw SSHEngineError.cancelled
+                }
+                var aio: sftp_aio?
+                let length = sftp_aio_begin_read(remote, chunk, &aio)
+                guard length > 0, aio != nil else {
+                    throw sftpError("read from \(remotePath) at byte \(requested)")
+                }
+                window.append((aio: aio, length: length))
+                requested += UInt64(length)
+            }
+
+            guard !window.isEmpty else { break }
+
+            let head = window.removeFirst()
+            var aio = head.aio
+            let n = buffer.withUnsafeMutableBytes {
+                sftp_aio_wait_read(&aio, $0.baseAddress!, chunk)
+            }
+            if aio != nil { sftp_aio_free(aio) }
+            if n == 0 {
+                drainWindow()
+                break
+            }
+            guard n > 0 else {
+                throw sftpError("read from \(remotePath) at byte \(received)")
+            }
             try buffer.withUnsafeBytes { raw in
                 try autoreleasepool {
                     try local.write(contentsOf: Data(bytes: raw.baseAddress!, count: n))
                 }
             }
             received += UInt64(n)
+
+            // A short read leaves every queued request reading from an offset
+            // that assumed a full chunk, which would punch a hole in the file.
+            // Drop the window and re-seek to what actually landed.
+            if n < head.length {
+                drainWindow()
+                guard sftp_seek64(remote, received) == SSH_OK else {
+                    throw sftpError("seek \(remotePath) to byte \(received)")
+                }
+                requested = received
+            }
         }
+
         _ = progress(received, total)
         remoteClosed = true
         guard sftp_close(remote) == SSH_OK else { throw sftpError("close \(remotePath)") }
